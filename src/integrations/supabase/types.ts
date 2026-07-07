@@ -136,7 +136,10 @@ export type Database = {
           address: string
           coupon_code: string | null
           created_at: string
+          customer_email: string | null
           customer_name: string
+          customer_phone: string | null
+          delivery_address: string | null
           discount: number
           id: string
           notes: string | null
@@ -150,12 +153,16 @@ export type Database = {
           updated_at: string
           user_id: string | null
           wilaya: string
+          products: Json | null
         }
         Insert: {
           address: string
           coupon_code?: string | null
           created_at?: string
+          customer_email?: string | null
           customer_name: string
+          customer_phone?: string | null
+          delivery_address?: string | null
           discount?: number
           id?: string
           notes?: string | null
@@ -169,12 +176,16 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           wilaya: string
+          products?: Json | null
         }
         Update: {
           address?: string
           coupon_code?: string | null
           created_at?: string
+          customer_email?: string | null
           customer_name?: string
+          customer_phone?: string | null
+          delivery_address?: string | null
           discount?: number
           id?: string
           notes?: string | null
@@ -188,6 +199,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           wilaya?: string
+          products?: Json | null
         }
         Relationships: []
       }

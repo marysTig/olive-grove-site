@@ -18,14 +18,14 @@ export async function validateCoupon(code: string): Promise<Coupon | null> {
 export interface CheckoutInput {
   items: CartItem[];
   customer_name: string;
-  phone: string;
-  address: string;
+  customer_email: string;
+  customer_phone: string;
+  delivery_address: string;
   wilaya: string;
   notes?: string;
   coupon_code?: string | null;
   discount_pct: number;
   shipping_fee: number;
-  user_id?: string | null;
 }
 
 export async function createOrder(input: CheckoutInput): Promise<Order> {
@@ -33,22 +33,37 @@ export async function createOrder(input: CheckoutInput): Promise<Order> {
   const discount = input.discount_pct > 0 ? subtotal * (input.discount_pct / 100) : 0;
   const total = subtotal - discount + input.shipping_fee;
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
-      user_id: input.user_id ?? null,
+      user_id: session?.user?.id ?? null,
       customer_name: input.customer_name,
-      phone: input.phone,
-      address: input.address,
+      customer_email: input.customer_email,
+      customer_phone: input.customer_phone,
+      delivery_address: input.delivery_address,
+      phone: input.customer_phone,
+      address: input.delivery_address,
       wilaya: input.wilaya,
       notes: input.notes ?? null,
       coupon_code: input.coupon_code ?? null,
+      status: "pending",
       payment_method: "cod",
       subtotal,
       discount,
       shipping_fee: input.shipping_fee,
       total,
-    })
+      products: input.items.map((item) => ({
+        id: item.id,
+        name_ar: item.name_ar,
+        name_fr: item.name_fr,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+    } as Record<string, unknown>)
     .select()
     .single();
 

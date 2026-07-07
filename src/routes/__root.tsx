@@ -13,6 +13,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { I18nProvider } from "@/i18n";
 import { CartProvider } from "@/lib/cart";
 import { AuthProvider } from "@/lib/auth";
+import { AdminAuthProvider } from "@/lib/admin-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -94,7 +95,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/logo.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/logo.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -105,11 +107,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="fr">
-      <head>
+    <html
+      lang="fr"
+      // Suppress hydration warnings for data-tsd-source attribute injected by component tagger
+      // The componentTagger (from @lovable.dev/vite-tanstack-config) calculates different line numbers
+      // on server vs client due to separate build pipelines, causing React hydration mismatches in dev.
+      // This is purely metadata for development and doesn't affect functionality.
+      suppressHydrationWarning={true}
+    >
+      <head suppressHydrationWarning>
         <HeadContent />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>
@@ -134,11 +143,13 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <AuthProvider>
-          <CartProvider>
-            {/* Required: nested routes render here. */}
-            <Outlet />
-            <Toaster position="top-center" richColors />
-          </CartProvider>
+          <AdminAuthProvider>
+            <CartProvider>
+              {/* Required: nested routes render here. */}
+              <Outlet />
+              <Toaster position="top-center" richColors />
+            </CartProvider>
+          </AdminAuthProvider>
         </AuthProvider>
       </I18nProvider>
     </QueryClientProvider>

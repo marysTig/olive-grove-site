@@ -14,7 +14,7 @@ export function Footer() {
       <div className="container-page grid gap-10 py-14 md:grid-cols-4">
         <div className="md:col-span-1">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="" className="h-11 w-11" width={44} height={44} />
+            <img src={logo} alt="" className="h-13 w-13 rounded-full object-contain" width={52} height={52} />
             <span className="font-display text-lg font-semibold">{t("brand")}</span>
           </div>
           <p className="mt-4 text-sm text-sidebar-foreground/70">{t("tagline")}</p>

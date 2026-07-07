@@ -20,11 +20,17 @@ const STORAGE_KEY = "lnj-lang";
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("fr");
 
+  // Restore saved language — client-only
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
-    if (saved === "ar" || saved === "fr") setLangState(saved);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
+      if (saved === "ar" || saved === "fr") setLangState(saved);
+    } catch {
+      // localStorage unavailable (SSR or private browsing)
+    }
   }, []);
 
+  // Sync <html> element attributes — client-only
   useEffect(() => {
     const dir = dict[lang].dir;
     document.documentElement.lang = lang;
@@ -33,7 +39,14 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    localStorage.setItem(STORAGE_KEY, l);
+    // Guard: localStorage only available in the browser
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(STORAGE_KEY, l);
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const t = (key: TKey) => dict[lang][key] ?? dict.fr[key] ?? key;

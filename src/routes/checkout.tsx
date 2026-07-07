@@ -15,7 +15,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useCart } from "@/lib/cart";
-import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/i18n";
 import { settingsQuery } from "@/lib/queries";
 import { formatPrice, productName } from "@/lib/format";
@@ -36,6 +35,7 @@ const WILAYAS = [
 
 const schema = z.object({
   customer_name: z.string().trim().min(2).max(100),
+  customer_email: z.string().trim().email("Veuillez saisir une adresse e-mail valide"),
   phone: z.string().trim().min(8).max(20),
   address: z.string().trim().min(5).max(300),
   wilaya: z.string().min(1),
@@ -46,7 +46,6 @@ type FormValues = z.infer<typeof schema>;
 function CheckoutPage() {
   const { t, lang } = useI18n();
   const { items, subtotal, clear } = useCart();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { data: settings } = useQuery(settingsQuery());
   const [coupon, setCoupon] = useState("");
@@ -84,11 +83,15 @@ function CheckoutPage() {
     try {
       const order = await createOrder({
         items,
-        ...values,
+        customer_name: values.customer_name,
+        customer_email: values.customer_email,
+        customer_phone: values.phone,
+        delivery_address: values.address,
+        wilaya: values.wilaya,
+        notes: values.notes,
         coupon_code: appliedCode,
         discount_pct: discountPct,
         shipping_fee: shippingFee,
-        user_id: user?.id ?? null,
       });
       clear();
       navigate({ to: "/order-confirmation/$id", params: { id: String(order.order_number) } });
@@ -121,6 +124,9 @@ function CheckoutPage() {
               <div className="grid gap-4">
                 <Field label={t("full_name")} error={errors.customer_name?.message}>
                   <Input {...register("customer_name")} className="rounded-xl" />
+                </Field>
+                <Field label={lang === "ar" ? "البريد الإلكتروني" : "Email"} error={errors.customer_email?.message}>
+                  <Input {...register("customer_email")} type="email" className="rounded-xl" />
                 </Field>
                 <Field label={t("phone")} error={errors.phone?.message}>
                   <Input {...register("phone")} type="tel" dir="ltr" className="rounded-xl" />

@@ -17,6 +17,7 @@ export const dict = {
     nav_admin: "Administration",
     nav_signin: "Se connecter",
     nav_signout: "Déconnexion",
+    nav_users: "Utilisateurs",
     // hero
     hero_title: "L'huile d'olive pure de la tradition de notre famille",
     hero_subtitle: "100% Naturelle • Extraite à froid • Qualité premium",
@@ -196,6 +197,7 @@ export const dict = {
     nav_admin: "الإدارة",
     nav_signin: "تسجيل الدخول",
     nav_signout: "تسجيل الخروج",
+    nav_users: "المستخدمين",
     hero_title: "زيت زيتون نقي من تقاليد عائلتنا",
     hero_subtitle: "طبيعي 100٪ • معصور على البارد • جودة ممتازة",
     hero_shop: "تسوق الآن",

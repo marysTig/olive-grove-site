@@ -45,6 +45,9 @@ export interface Order {
   status: OrderStatus;
   payment_method: string;
   customer_name: string;
+  customer_email?: string | null;
+  customer_phone?: string | null;
+  delivery_address?: string | null;
   phone: string;
   address: string;
   wilaya: string;
@@ -54,6 +57,7 @@ export interface Order {
   shipping_fee: number;
   discount: number;
   total: number;
+  products?: Array<Record<string, unknown>>;
   created_at: string;
 }
 
