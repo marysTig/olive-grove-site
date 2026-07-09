@@ -18,8 +18,143 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
+// Lazy-load the Express app so it doesn't block startup
+let expressAppPromise: Promise<{ default: (req: unknown, res: unknown) => void }> | undefined;
+async function getExpressApp() {
+  if (!expressAppPromise) {
+    expressAppPromise = import("../server/src/app");
+  }
+  return expressAppPromise;
+}
+
+/**
+ * Bridges a Web API Request → Express handler → Web API Response.
+ * This lets the existing Express routes run inside the Cloudflare/Vercel
+ * runtime without modifying any controller code.
+ */
+async function handleExpressRoute(request: Request): Promise<Response> {
+  const { default: app } = await getExpressApp();
+
+  return new Promise<Response>((resolve) => {
+    // Build a minimal Node-like req/res from the Web API Request
+    const url = new URL(request.url);
+
+    const headers: Record<string, string> = {};
+    request.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+
+    let bodyBuffer: Buffer | undefined;
+    const responseHeaders: Record<string, string> = {};
+    let statusCode = 200;
+    let responseBody = "";
+
+    // Node-compatible shim objects
+    const req = {
+      method: request.method,
+      url: url.pathname + url.search,
+      headers,
+      body: undefined as unknown,
+      on: (event: string, cb: (chunk?: unknown) => void) => {
+        if (event === "data" && bodyBuffer) cb(bodyBuffer);
+        if (event === "end") cb();
+        return req;
+      },
+      pipe: () => req,
+    };
+
+    const res = {
+      statusCode,
+      setHeader: (key: string, value: string) => {
+        responseHeaders[key] = value;
+      },
+      getHeader: (key: string) => responseHeaders[key],
+      removeHeader: (key: string) => {
+        delete responseHeaders[key];
+      },
+      end: (body?: string | Buffer) => {
+        responseBody = body ? body.toString() : "";
+        resolve(
+          new Response(responseBody || null, {
+            status: res.statusCode,
+            headers: responseHeaders,
+          }),
+        );
+      },
+      write: (chunk: string | Buffer) => {
+        responseBody += chunk.toString();
+        return true;
+      },
+      json: (data: unknown) => {
+        responseHeaders["content-type"] = "application/json";
+        responseBody = JSON.stringify(data);
+        resolve(
+          new Response(responseBody, {
+            status: res.statusCode,
+            headers: responseHeaders,
+          }),
+        );
+      },
+      status: (code: number) => {
+        res.statusCode = code;
+        return res;
+      },
+      send: (body: unknown) => {
+        if (typeof body === "object") {
+          responseHeaders["content-type"] = "application/json";
+          responseBody = JSON.stringify(body);
+        } else {
+          responseBody = String(body ?? "");
+        }
+        resolve(
+          new Response(responseBody, {
+            status: res.statusCode,
+            headers: responseHeaders,
+          }),
+        );
+      },
+    };
+
+    // Load request body for POST/PATCH/PUT
+    const processBody = async () => {
+      if (["POST", "PUT", "PATCH"].includes(request.method)) {
+        const contentType = headers["content-type"] ?? "";
+        if (contentType.includes("application/json")) {
+          const text = await request.text();
+          req.body = text ? JSON.parse(text) : {};
+        } else {
+          req.body = {};
+        }
+      }
+
+      // Call the Express app
+      try {
+        (app as (req: unknown, res: unknown) => void)(req, res);
+      } catch (err) {
+        console.error("Express handler error:", err);
+        resolve(
+          new Response(
+            JSON.stringify({ success: false, statusCode: 500, message: "Internal server error" }),
+            { status: 500, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+    };
+
+    processBody().catch((err) => {
+      console.error("Body processing error:", err);
+      resolve(
+        new Response(
+          JSON.stringify({ success: false, statusCode: 500, message: "Failed to process request body" }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        ),
+      );
+    });
+  });
+}
+
 // h3 swallows in-handler throws into a normal 500 Response with body
-// {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
+// {\"unhandled\":true,\"message\":\"HTTPError\"} — try/catch alone never fires for those.
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
@@ -47,6 +182,14 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+
+      // Intercept all /api/v1/* requests and route them to the Express app
+      if (url.pathname.startsWith("/api/v1")) {
+        return await handleExpressRoute(request);
+      }
+
+      // All other routes go through TanStack Start's SSR handler
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
