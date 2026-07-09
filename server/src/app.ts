@@ -11,6 +11,22 @@ import { ApiError } from "@server/utils/ApiError";
 const app: Application = express();
 // Database connection is handled gracefully by the Supabase JS client.
 
+// IMPORTANT VERCEL FIX: Normalize req.url so Express routes match correctly.
+// Vercel sometimes strips the `/api` or alters the base URL depending on the route matching strategy.
+app.use((req, _res, next) => {
+  if (!req.url.startsWith("/api/v1") && req.url.startsWith("/v1")) {
+    req.url = `/api${req.url}`;
+  } else if (!req.url.startsWith("/api/v1") && !req.url.startsWith("/api")) {
+    // If it's completely stripped, try to append it back based on what we expect
+    req.url = `/api/v1${req.url.startsWith("/") ? "" : "/"}${req.url}`;
+  }
+  // Remove /api/server if it was set by a Vercel rewrite
+  if (req.url.startsWith("/api/server")) {
+    req.url = req.url.replace("/api/server", "/api/v1");
+  }
+  next();
+});
+
 const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
