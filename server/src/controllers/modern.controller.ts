@@ -530,7 +530,7 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
   }
 
   const [{ data: allOrders }, { count: productCount }, { count: customerCount }] = await Promise.all([
-    supabase.from("orders").select("status,total,created_at"),
+    supabase.from("orders").select("status,total,created_at,items"),
     supabase.from("products").select("*", { count: "exact", head: true }),
     supabase.from("mongo_users").select("*", { count: "exact", head: true }).eq("role", "client"),
   ]);
@@ -539,17 +539,39 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
   const revenue = orders.filter(o => o.status === "delivered").reduce((s, o) => s + Number(o.total || 0), 0);
   const orderStatusCounts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {} as Record<string, number>);
 
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const revenueByDayMap = new Map<string, number>();
+  const daysParam = req.query.days ? parseInt(req.query.days as string, 10) : 30;
+  // If daysParam is 0 or negative, maybe it means all time, but let's just use it as is.
+  // We'll set a default of 30 if parsing fails.
+  const days = isNaN(daysParam) ? 30 : daysParam;
+  
+  const fromDate = new Date();
+  fromDate.setDate(fromDate.getDate() - days);
+  
+  const revenueByDayMap = new Map<string, Record<string, number>>();
+  const allProductNames = new Set<string>();
+  
   for (const o of orders) {
-    if (o.status === "delivered" && new Date(o.created_at) >= thirtyDaysAgo) {
+    if (o.status === "delivered" && (days === 0 || new Date(o.created_at) >= fromDate)) {
       const day = o.created_at.slice(0, 10);
-      revenueByDayMap.set(day, (revenueByDayMap.get(day) || 0) + Number(o.total || 0));
+      if (!revenueByDayMap.has(day)) revenueByDayMap.set(day, {});
+      const dayData = revenueByDayMap.get(day)!;
+
+      const items = Array.isArray(o.items) ? o.items : [];
+      for (const item of items) {
+        const anyItem = item as any;
+        const productName = String(anyItem.name_fr || anyItem.name_ar || anyItem.nameFr || anyItem.nameAr || "Unknown");
+        allProductNames.add(productName);
+        const itemRev = Number(anyItem.price || 0) * Number(anyItem.quantity || 1);
+        dayData[productName] = (dayData[productName] || 0) + itemRev;
+      }
     }
   }
+  
   const revenueByDay = Array.from(revenueByDayMap.entries())
-    .map(([_id, revenue]) => ({ _id, revenue }))
+    .map(([day, productRevenues]) => ({
+      _id: day,
+      ...productRevenues
+    }))
     .sort((a, b) => a._id.localeCompare(b._id));
 
   ApiResponse.success(
@@ -562,6 +584,7 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
       revenue,
       customers: customerCount ?? 0,
       revenueByDay,
+      productNames: Array.from(allProductNames),
     },
     "Dashboard stats fetched successfully",
   );

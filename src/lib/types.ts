@@ -133,7 +133,8 @@ export interface DashboardStats {
   pendingOrders: number;
   deliveredOrders: number;
   customers: number;
-  revenueByDay: Array<{ _id: string; revenue: number }>;
+  revenueByDay: Array<{ _id: string } & Record<string, number>>;
+  productNames: string[];
 }
 
 export interface ProductAnalytics extends Product {

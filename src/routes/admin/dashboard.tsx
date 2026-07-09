@@ -1,11 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, ShoppingCart, Package, Clock } from "lucide-react";
+import { BarChart3, ShoppingCart, Package, Clock, Calendar } from "lucide-react";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { dashboardStatsQuery } from "@/lib/queries";
 import { formatPrice } from "@/lib/format";
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { useI18n } from "@/i18n";
+import { useState } from "react";
+
+const COLORS = [
+  "#8BC34A", "#2196F3", "#FF9800", "#F44336", "#9C27B0", "#00BCD4", "#FFC107", "#E91E63", "#3F51B5", "#009688", "#4CAF50", "#795548", "#607D8B"
+];
+
+const DATE_PRESETS = [
+  { label: "Auj.", labelAr: "اليوم",  days: 1   },
+  { label: "7j",   labelAr: "٧ أيام", days: 7   },
+  { label: "30j",  labelAr: "٣٠ يوم", days: 30  },
+  { label: "90j",  labelAr: "٩٠ يوم", days: 90  },
+  { label: "365j", labelAr: "سنة",    days: 365 },
+  { label: "Tout", labelAr: "الكل",   days: 0   },
+];
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: AdminDashboard,
@@ -14,7 +28,8 @@ export const Route = createFileRoute("/admin/dashboard")({
 function AdminDashboard() {
   const { user } = useAdminAuth();
   const { lang } = useI18n();
-  const { data: stats, isLoading } = useQuery(dashboardStatsQuery());
+  const [selectedDays, setSelectedDays] = useState(30);
+  const { data: stats, isLoading } = useQuery(dashboardStatsQuery(selectedDays));
 
   const statItems = [
     {
@@ -53,10 +68,14 @@ function AdminDashboard() {
 
   // Prepare chart data
   const chartData =
-    stats?.revenueByDay?.map((item) => ({
-      name: item._id,
-      revenue: item.revenue,
-    })) ?? [];
+    stats?.revenueByDay?.map((item) => {
+      const { _id, ...rest } = item;
+      return {
+        name: _id,
+        ...rest,
+      };
+    }) ?? [];
+  const productNames = stats?.productNames ?? [];
 
   return (
     <div className="space-y-8">
@@ -92,23 +111,82 @@ function AdminDashboard() {
       </div>
 
       {/* Revenue chart */}
-      {chartData.length > 0 && (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h3 className="mb-4 font-semibold">
-            {lang === "ar" ? "الإيرادات على مدار الوقت" : "Revenus au fil du temps"}
-          </h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+        {/* Chart header with title + date filter */}
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+            <h3 className="font-semibold">
+              {lang === "ar" ? "الإيرادات على مدار الوقت" : "Revenus au fil du temps"}
+            </h3>
+          </div>
+
+          {/* Date preset pill buttons */}
+          <div className="flex flex-wrap gap-1.5">
+            {DATE_PRESETS.map((preset) => {
+              const active = selectedDays === preset.days;
+              return (
+                <button
+                  key={preset.days}
+                  onClick={() => setSelectedDays(preset.days)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-200 border ${
+                    active
+                      ? "bg-olive-dark text-white border-olive-dark shadow-sm scale-105"
+                      : "bg-transparent text-muted-foreground border-border hover:border-olive-dark hover:text-olive-dark"
+                  }`}
+                >
+                  {lang === "ar" ? preset.labelAr : preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Chart body */}
+        {isLoading ? (
+          <div className="flex h-80 items-center justify-center text-sm text-muted-foreground animate-pulse">
+            {lang === "ar" ? "جارٍ التحميل…" : "Chargement…"}
+          </div>
+        ) : chartData.length === 0 ? (
+          <div className="flex h-80 items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 text-sm text-muted-foreground">
+            {lang === "ar"
+              ? "لا توجد بيانات للفترة المحددة"
+              : "Aucune donnée pour la période sélectionnée"}
+          </div>
+        ) : (
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatPrice(Number(value), lang)} />
-                <Bar dataKey="revenue" fill="#8BC34A" radius={[8, 8, 0, 0]} />
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                />
+                <Tooltip
+                  formatter={(value, name) => [formatPrice(Number(value), lang), name]}
+                  contentStyle={{ borderRadius: "12px", border: "1px solid #e5e7eb", fontSize: 12 }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                {productNames.map((productName, index) => (
+                  <Bar
+                    key={productName}
+                    dataKey={productName}
+                    fill={COLORS[index % COLORS.length]}
+                    radius={[4, 4, 0, 0]}
+                  />
+                ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

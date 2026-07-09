@@ -87,12 +87,15 @@ export const reviewsByProductQuery = (slug: string) =>
     },
   });
 
-export const dashboardStatsQuery = () =>
+export const dashboardStatsQuery = (days: number = 30) =>
   queryOptions({
-    queryKey: ["dashboard", "stats"],
+    queryKey: ["dashboard", "stats", days],
     queryFn: async (): Promise<DashboardStats> => {
       try {
-        const response = await fetch(`${getApiBaseUrl()}/dashboard/stats`, {
+        const url = days === 0
+          ? `${getApiBaseUrl()}/dashboard/stats?days=0`
+          : `${getApiBaseUrl()}/dashboard/stats?days=${days}`;
+        const response = await fetch(url, {
           credentials: "include",
         });
         const json = await response.json();
