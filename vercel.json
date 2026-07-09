@@ -1,13 +1,7 @@
 {
   "functions": {
-    "api/server.ts": {
+    "api/**/*": {
       "maxDuration": 30
     }
-  },
-  "rewrites": [
-    {
-      "source": "/api/v1/:path*",
-      "destination": "/api/server"
-    }
-  ]
+  }
 }
