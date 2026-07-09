@@ -1,12 +1,9 @@
 import { z } from "zod";
 import dotenv from "dotenv";
 import path from "path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 try {
-  dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+  dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 } catch {
   // Vercel injects env vars directly
 }
