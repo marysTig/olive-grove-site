@@ -32,26 +32,63 @@ async function getExpressApp() {
  * This lets the existing Express routes run inside the Cloudflare/Vercel
  * runtime without modifying any controller code.
  */
+function parseCookieHeader(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rawValue] = part.trim().split("=");
+    if (!rawKey) continue;
+    cookies[rawKey] = decodeURIComponent(rawValue.join("="));
+  }
+
+  return cookies;
+}
+
+function buildSetCookie(name: string, value: string, options: {
+  maxAge?: number;
+  httpOnly?: boolean;
+  path?: string;
+  secure?: boolean;
+  sameSite?: string;
+} = {}): string {
+  const parts = [`${name}=${encodeURIComponent(value)}`];
+  if (options.maxAge !== undefined) parts.push(`Max-Age=${Math.floor(options.maxAge / 1000)}`);
+  if (options.path) parts.push(`Path=${options.path}`);
+  if (options.httpOnly) parts.push("HttpOnly");
+  if (options.secure) parts.push("Secure");
+  if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
+  return parts.join("; ");
+}
+
 async function handleExpressRoute(request: Request): Promise<Response> {
   const { default: app } = await getExpressApp();
 
   return new Promise<Response>((resolve) => {
-    // Build a minimal Node-like req/res from the Web API Request
     const url = new URL(request.url);
 
     const headers: Record<string, string> = {};
     request.headers.forEach((value, key) => {
-      headers[key] = value;
+      headers[key.toLowerCase()] = value;
     });
 
-    let bodyBuffer: Buffer | undefined;
-    const responseHeaders: Record<string, string> = {};
+    const responseHeaders = new Headers();
     let statusCode = 200;
     let responseBody = "";
+    let settled = false;
 
-    // Node-compatible shim objects
+    const finish = (body: string | null = responseBody || null) => {
+      if (settled) return;
+      settled = true;
+      resolve(
+        new Response(body, {
+          status: statusCode,
+          headers: responseHeaders,
+        }),
+      );
+    };
+
     const socket = { remoteAddress: "127.0.0.1" };
-
     const listeners: Record<string, Array<(chunk?: unknown) => void>> = {};
 
     const req = {
@@ -64,7 +101,7 @@ async function handleExpressRoute(request: Request): Promise<Response> {
       socket,
       connection: socket,
       ip: "127.0.0.1",
-      cookies: {} as Record<string, string>,
+      cookies: parseCookieHeader(headers.cookie),
       body: undefined as unknown,
       readable: true,
       read: () => null,
@@ -87,68 +124,72 @@ async function handleExpressRoute(request: Request): Promise<Response> {
     const res = {
       statusCode,
       setHeader: (key: string, value: string | string[]) => {
-        responseHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
+        const lower = key.toLowerCase();
+        if (lower === "set-cookie") {
+          const values = Array.isArray(value) ? value : [value];
+          for (const entry of values) responseHeaders.append("Set-Cookie", entry);
+          return;
+        }
+        responseHeaders.set(key, Array.isArray(value) ? value.join(", ") : value);
       },
-      getHeader: (key: string) => responseHeaders[key],
+      getHeader: (key: string) => responseHeaders.get(key) ?? undefined,
       removeHeader: (key: string) => {
-        delete responseHeaders[key];
+        responseHeaders.delete(key);
       },
-      cookie: (name: string, value: string, options: { maxAge?: number; httpOnly?: boolean; path?: string; secure?: boolean; sameSite?: string } = {}) => {
-        const parts = [`${name}=${encodeURIComponent(value)}`];
-        if (options.maxAge !== undefined) parts.push(`Max-Age=${Math.floor(options.maxAge / 1000)}`);
-        if (options.path) parts.push(`Path=${options.path}`);
-        if (options.httpOnly) parts.push("HttpOnly");
-        if (options.secure) parts.push("Secure");
-        if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
-        const existing = responseHeaders["set-cookie"];
-        responseHeaders["set-cookie"] = existing ? `${existing}, ${parts.join("; ")}` : parts.join("; ");
+      appendHeader: (key: string, value: string) => {
+        const lower = key.toLowerCase();
+        if (lower === "set-cookie") {
+          responseHeaders.append("Set-Cookie", value);
+          return;
+        }
+        const existing = responseHeaders.get(key);
+        responseHeaders.set(key, existing ? `${existing}, ${value}` : value);
+      },
+      cookie: (
+        name: string,
+        value: string,
+        options: {
+          maxAge?: number;
+          httpOnly?: boolean;
+          path?: string;
+          secure?: boolean;
+          sameSite?: string;
+        } = {},
+      ) => {
+        responseHeaders.append("Set-Cookie", buildSetCookie(name, value, options));
       },
       clearCookie: (name: string, options: { path?: string } = {}) => {
-        const parts = [`${name}=`, "Max-Age=0"];
-        if (options.path) parts.push(`Path=${options.path}`);
-        const existing = responseHeaders["set-cookie"];
-        responseHeaders["set-cookie"] = existing ? `${existing}, ${parts.join("; ")}` : parts.join("; ");
+        responseHeaders.append(
+          "Set-Cookie",
+          buildSetCookie(name, "", { ...options, maxAge: 0 }),
+        );
       },
       end: (body?: string | Buffer) => {
         responseBody = body ? body.toString() : "";
-        resolve(
-          new Response(responseBody || null, {
-            status: res.statusCode,
-            headers: responseHeaders,
-          }),
-        );
+        finish(responseBody || null);
       },
       write: (chunk: string | Buffer) => {
         responseBody += chunk.toString();
         return true;
       },
       json: (data: unknown) => {
-        responseHeaders["content-type"] = "application/json";
+        responseHeaders.set("content-type", "application/json");
         responseBody = JSON.stringify(data);
-        resolve(
-          new Response(responseBody, {
-            status: res.statusCode,
-            headers: responseHeaders,
-          }),
-        );
+        finish(responseBody);
       },
       status: (code: number) => {
+        statusCode = code;
         res.statusCode = code;
         return res;
       },
       send: (body: unknown) => {
-        if (typeof body === "object") {
-          responseHeaders["content-type"] = "application/json";
+        if (typeof body === "object" && body !== null) {
+          responseHeaders.set("content-type", "application/json");
           responseBody = JSON.stringify(body);
         } else {
           responseBody = String(body ?? "");
         }
-        resolve(
-          new Response(responseBody, {
-            status: res.statusCode,
-            headers: responseHeaders,
-          }),
-        );
+        finish(responseBody);
       },
     };
 
@@ -173,23 +214,21 @@ async function handleExpressRoute(request: Request): Promise<Response> {
         (app as (req: unknown, res: unknown) => void)(req, res);
       } catch (err) {
         console.error("Express handler error:", err);
-        resolve(
-          new Response(
+        if (!settled) {
+          finish(
             JSON.stringify({ success: false, statusCode: 500, message: "Internal server error" }),
-            { status: 500, headers: { "content-type": "application/json" } },
-          ),
-        );
+          );
+        }
       }
     };
 
     processBody().catch((err) => {
       console.error("Body processing error:", err);
-      resolve(
-        new Response(
+      if (!settled) {
+        finish(
           JSON.stringify({ success: false, statusCode: 500, message: "Failed to process request body" }),
-          { status: 500, headers: { "content-type": "application/json" } },
-        ),
-      );
+        );
+      }
     });
   });
 }
