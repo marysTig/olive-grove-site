@@ -9,7 +9,9 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "setup:db": "tsx scripts/setup-database.ts",
+    "dev:api": "tsx scripts/run-api-dev.ts"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.2.7",
@@ -99,6 +101,8 @@
     "globals": "^15.15.0",
     "nitro": "3.0.260603-beta",
     "prettier": "^3.7.3",
+    "pg": "^8.16.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.16"

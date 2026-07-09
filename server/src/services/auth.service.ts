@@ -1,134 +1,145 @@
 import { Response } from "express";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import { supabase } from "@server/database/supabase";
+import { supabase, supabaseAuthClient } from "@server/database/supabase";
 import { env } from "@server/config/env.config";
 import { ApiError } from "@server/utils/ApiError";
+import { getUserRole, toApiRole } from "@server/utils/db-helpers";
 
 export interface IUser {
   id: string;
   fullName: string;
   email: string;
-  role: string;
+  role: "admin" | "client";
   isActive: boolean;
   lastLogin: Date | null;
   language: string;
 }
 
+export interface AuthSession {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
+
 export class AuthService {
-  /**
-   * Authenticate a user with email and password.
-   * Returns the user object.
-   */
-  static async login(email: string, password: string): Promise<IUser> {
-    console.log("Login attempt:", { email, password });
-    const { data: user, error } = await supabase
-      .from("mongo_users")
-      .select("*")
-      .eq("email", email.toLowerCase())
-      .single();
+  static async login(email: string, password: string): Promise<{ user: IUser; session: AuthSession }> {
+    if (!email || !password) {
+      throw ApiError.badRequest("Email and password are required");
+    }
 
-    console.log("Supabase fetch:", { user, error });
+    const { data, error } = await supabaseAuthClient.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password,
+    });
 
-    if (error || !user) {
+    if (error || !data.user || !data.session) {
       throw ApiError.unauthorized("Invalid email or password");
     }
 
-    if (!user.is_active) {
+    const user = await AuthService.getUserById(data.user.id);
+    if (!user) {
+      throw ApiError.unauthorized("Invalid email or password");
+    }
+
+    if (!user.isActive) {
       throw ApiError.forbidden("Your account has been deactivated. Contact an administrator.");
     }
 
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    console.log("Password match:", { isMatch, inputPassword: password, hash: user.password_hash });
+    return {
+      user,
+      session: {
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+      },
+    };
+  }
 
-    if (!isMatch) {
-      throw ApiError.unauthorized("Invalid email or password");
+  static async verifyAccessToken(token: string): Promise<IUser> {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) {
+      throw ApiError.unauthorized("Invalid or expired session");
     }
 
-    // Update last login
-    await supabase
-      .from("mongo_users")
-      .update({ last_login: new Date().toISOString() })
-      .eq("id", user.id);
+    const user = await AuthService.getUserById(data.user.id);
+    if (!user) {
+      throw ApiError.unauthorized("The user belonging to this token no longer exists.");
+    }
 
-    return {
-      id: user.id,
-      fullName: user.full_name,
-      email: user.email,
-      role: user.role,
-      isActive: user.is_active,
-      lastLogin: user.last_login ? new Date(user.last_login) : null,
-      language: user.language,
-    };
+    if (!user.isActive) {
+      throw ApiError.forbidden("Your account has been deactivated. Contact an administrator.");
+    }
+
+    return user;
   }
 
-  /**
-   * Generate a signed JWT for the given user.
-   */
-  static generateToken(user: IUser): string {
-    const payload = {
-      id: user.id,
-      role: user.role,
-    };
-
-    return jwt.sign(payload, env.JWT_SECRET, {
-      expiresIn: env.JWT_EXPIRES_IN as string & { __brand: "StringValue" },
-    } as jwt.SignOptions);
-  }
-
-  /**
-   * Set the JWT as an HttpOnly cookie on the response.
-   */
-  static setTokenCookie(res: Response, token: string): void {
-    const cookieOptions: {
-      expires: Date;
-      httpOnly: boolean;
-      secure: boolean;
-      sameSite: "strict" | "lax" | "none";
-      path: string;
-    } = {
-      expires: new Date(Date.now() + env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+  static setSessionCookies(res: Response, session: AuthSession): void {
+    const maxAgeMs = Math.max((session.expiresAt - Math.floor(Date.now() / 1000)) * 1000, 0);
+    const cookieOptions = {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
-      sameSite: env.NODE_ENV === "production" ? "strict" : "lax",
+      sameSite: env.NODE_ENV === "production" ? ("strict" as const) : ("lax" as const),
       path: "/",
+      maxAge: maxAgeMs,
     };
 
-    res.cookie("jwt", token, cookieOptions);
-  }
-
-  /**
-   * Clear the JWT cookie (logout).
-   */
-  static clearTokenCookie(res: Response): void {
-    res.cookie("jwt", "", {
-      httpOnly: true,
-      expires: new Date(0),
-      path: "/",
+    res.cookie("sb-access-token", session.accessToken, cookieOptions);
+    res.cookie("sb-refresh-token", session.refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }
 
-  /**
-   * Get a user by ID (for session restoration via /me endpoint).
-   * Returns null if user not found or inactive.
-   */
-  static async getUserById(id: string): Promise<IUser | null> {
-    const { data: user, error } = await supabase
-      .from("mongo_users")
-      .select("*")
-      .eq("id", id)
-      .single();
+  static clearSessionCookies(res: Response): void {
+    res.clearCookie("sb-access-token", { path: "/" });
+    res.clearCookie("sb-refresh-token", { path: "/" });
+    res.clearCookie("jwt", { path: "/" });
+  }
 
-    if (error || !user || !user.is_active) return null;
-    
+  static extractTokenFromRequest(req: {
+    headers: { authorization?: string };
+    cookies?: Record<string, string | undefined>;
+  }): string | undefined {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      return authHeader.split(" ")[1];
+    }
+
+    return req.cookies?.["sb-access-token"] ?? req.cookies?.jwt;
+  }
+
+  static async getUserById(id: string): Promise<IUser | null> {
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(id);
+    if (authError || !authUser.user) return null;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name, language, is_active")
+      .eq("id", id)
+      .maybeSingle();
+
+    const role = await getUserRole(id);
+
     return {
-      id: user.id,
-      fullName: user.full_name,
-      email: user.email,
-      role: user.role,
-      isActive: user.is_active,
-      lastLogin: user.last_login ? new Date(user.last_login) : null,
-      language: user.language,
+      id,
+      fullName: profile?.name ?? authUser.user.user_metadata?.name ?? authUser.user.email ?? "",
+      email: authUser.user.email ?? "",
+      role: toApiRole(role),
+      isActive: profile?.is_active ?? true,
+      lastLogin: authUser.user.last_sign_in_at ? new Date(authUser.user.last_sign_in_at) : null,
+      language: profile?.language ?? "fr",
     };
+  }
+
+  static async verifyCurrentPassword(userId: string, password: string): Promise<void> {
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    const email = authUser.user?.email;
+    if (!email) {
+      throw ApiError.notFound("User not found");
+    }
+
+    const { error } = await supabaseAuthClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw ApiError.unauthorized("Current password is incorrect");
+    }
   }
 }

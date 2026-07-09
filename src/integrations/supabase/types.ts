@@ -136,6 +136,7 @@ export type Database = {
           delivery_address: string | null;
           discount: number;
           id: string;
+          inventory_deducted: boolean;
           notes: string | null;
           order_number: number;
           payment_method: string;
@@ -209,6 +210,7 @@ export type Database = {
           featured: boolean;
           harvest_date: string | null;
           id: string;
+          image_public_ids: string[];
           images: string[];
           name_ar: string;
           name_fr: string;
@@ -231,6 +233,7 @@ export type Database = {
           featured?: boolean;
           harvest_date?: string | null;
           id?: string;
+          image_public_ids?: string[];
           images?: string[];
           name_ar: string;
           name_fr: string;
@@ -253,6 +256,7 @@ export type Database = {
           featured?: boolean;
           harvest_date?: string | null;
           id?: string;
+          image_public_ids?: string[];
           images?: string[];
           name_ar?: string;
           name_fr?: string;
@@ -278,6 +282,8 @@ export type Database = {
         Row: {
           created_at: string;
           id: string;
+          is_active: boolean;
+          language: string;
           name: string | null;
           phone: string | null;
           updated_at: string;
@@ -285,6 +291,8 @@ export type Database = {
         Insert: {
           created_at?: string;
           id: string;
+          is_active?: boolean;
+          language?: string;
           name?: string | null;
           phone?: string | null;
           updated_at?: string;
@@ -292,6 +300,8 @@ export type Database = {
         Update: {
           created_at?: string;
           id?: string;
+          is_active?: boolean;
+          language?: string;
           name?: string | null;
           phone?: string | null;
           updated_at?: string;
@@ -301,11 +311,13 @@ export type Database = {
       store_settings: {
         Row: {
           address: string | null;
+          contact_name: string | null;
           email: string | null;
           facebook_url: string | null;
           free_shipping_threshold: number;
           id: number;
           instagram_url: string | null;
+          phone: string | null;
           shipping_fee: number;
           updated_at: string;
           whatsapp_number: string | null;
@@ -331,6 +343,78 @@ export type Database = {
           shipping_fee?: number;
           updated_at?: string;
           whatsapp_number?: string | null;
+        };
+        Relationships: [];
+      };
+      gallery: {
+        Row: {
+          created_at: string;
+          description: string;
+          id: string;
+          image_public_id: string;
+          image_url: string;
+          order: number;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string;
+          id?: string;
+          image_public_id: string;
+          image_url: string;
+          order?: number;
+          title?: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string;
+          id?: string;
+          image_public_id?: string;
+          image_url?: string;
+          order?: number;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      reviews: {
+        Row: {
+          comment: string;
+          created_at: string;
+          customer_email: string;
+          customer_name: string;
+          id: string;
+          is_visible: boolean;
+          product_id: string;
+          rating: number;
+          updated_at: string;
+          user_id: string | null;
+        };
+        Insert: {
+          comment: string;
+          created_at?: string;
+          customer_email: string;
+          customer_name: string;
+          id?: string;
+          is_visible?: boolean;
+          product_id: string;
+          rating?: number;
+          updated_at?: string;
+          user_id?: string | null;
+        };
+        Update: {
+          comment?: string;
+          created_at?: string;
+          customer_email?: string;
+          customer_name?: string;
+          id?: string;
+          is_visible?: boolean;
+          product_id?: string;
+          rating?: number;
+          updated_at?: string;
+          user_id?: string | null;
         };
         Relationships: [];
       };

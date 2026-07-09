@@ -50,27 +50,64 @@ async function handleExpressRoute(request: Request): Promise<Response> {
     let responseBody = "";
 
     // Node-compatible shim objects
+    const socket = { remoteAddress: "127.0.0.1" };
+
+    const listeners: Record<string, Array<(chunk?: unknown) => void>> = {};
+
     const req = {
       method: request.method,
       url: url.pathname + url.search,
+      originalUrl: url.pathname + url.search,
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams.entries()),
       headers,
+      socket,
+      connection: socket,
+      ip: "127.0.0.1",
+      cookies: {} as Record<string, string>,
       body: undefined as unknown,
+      readable: true,
+      read: () => null,
       on: (event: string, cb: (chunk?: unknown) => void) => {
-        if (event === "data" && bodyBuffer) cb(bodyBuffer);
-        if (event === "end") cb();
+        listeners[event] = listeners[event] ?? [];
+        listeners[event].push(cb);
         return req;
+      },
+      removeListener: (event: string, cb: (chunk?: unknown) => void) => {
+        listeners[event] = (listeners[event] ?? []).filter((fn) => fn !== cb);
+        return req;
+      },
+      emit: (event: string, chunk?: unknown) => {
+        for (const cb of listeners[event] ?? []) cb(chunk);
+        return true;
       },
       pipe: () => req,
     };
 
     const res = {
       statusCode,
-      setHeader: (key: string, value: string) => {
-        responseHeaders[key] = value;
+      setHeader: (key: string, value: string | string[]) => {
+        responseHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
       },
       getHeader: (key: string) => responseHeaders[key],
       removeHeader: (key: string) => {
         delete responseHeaders[key];
+      },
+      cookie: (name: string, value: string, options: { maxAge?: number; httpOnly?: boolean; path?: string; secure?: boolean; sameSite?: string } = {}) => {
+        const parts = [`${name}=${encodeURIComponent(value)}`];
+        if (options.maxAge !== undefined) parts.push(`Max-Age=${Math.floor(options.maxAge / 1000)}`);
+        if (options.path) parts.push(`Path=${options.path}`);
+        if (options.httpOnly) parts.push("HttpOnly");
+        if (options.secure) parts.push("Secure");
+        if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
+        const existing = responseHeaders["set-cookie"];
+        responseHeaders["set-cookie"] = existing ? `${existing}, ${parts.join("; ")}` : parts.join("; ");
+      },
+      clearCookie: (name: string, options: { path?: string } = {}) => {
+        const parts = [`${name}=`, "Max-Age=0"];
+        if (options.path) parts.push(`Path=${options.path}`);
+        const existing = responseHeaders["set-cookie"];
+        responseHeaders["set-cookie"] = existing ? `${existing}, ${parts.join("; ")}` : parts.join("; ");
       },
       end: (body?: string | Buffer) => {
         responseBody = body ? body.toString() : "";
@@ -125,9 +162,13 @@ async function handleExpressRoute(request: Request): Promise<Response> {
         } else {
           req.body = {};
         }
+      } else {
+        req.body = {};
+        queueMicrotask(() => req.emit("end"));
       }
 
-      // Call the Express app
+      (req as { _body?: boolean })._body = true;
+
       try {
         (app as (req: unknown, res: unknown) => void)(req, res);
       } catch (err) {

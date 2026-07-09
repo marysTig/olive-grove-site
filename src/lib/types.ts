@@ -102,6 +102,8 @@ export interface StoreSettings {
   facebook_url: string | null;
   email: string | null;
   address: string | null;
+  contact_name?: string | null;
+  phone?: string | null;
 }
 
 export interface ContactSettings {

@@ -1,47 +1,40 @@
 import { z } from "zod";
 import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from "node:url";
 
-// Load .env file from server root (only in non-serverless environments)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 try {
   dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 } catch {
-  // In Vercel serverless, env vars are injected directly — this is fine
+  // Vercel injects env vars directly
 }
 
 const envSchema = z.object({
-  // Server
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().positive().default(5000),
 
-  // JWT
-  JWT_SECRET: z
-    .string()
-    .min(32, "JWT_SECRET must be at least 32 characters")
-    .default("supersecret_jwt_key_that_is_at_least_32_characters_long"),
-  JWT_EXPIRES_IN: z.string().default("7d"),
-  JWT_COOKIE_EXPIRES_IN: z.coerce.number().positive().default(7),
-
-  // CORS
   CORS_ORIGIN: z
     .string()
     .default(
       "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,https://olive-grove-site.vercel.app",
     ),
 
-  // Rate Limiting
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(900000), // 15 min
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().positive().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().positive().default(100),
 
-  // Cloudinary
+  SUPABASE_URL: z.string().url().min(1),
+  SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+
   CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
   CLOUDINARY_API_KEY: z.string().min(1).optional(),
   CLOUDINARY_API_SECRET: z.string().min(1).optional(),
   CLOUDINARY_FOLDER: z.string().min(1).optional(),
 
-  // Supabase
-  SUPABASE_URL: z.string().url().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().min(8).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -50,11 +43,32 @@ const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error(
-    "❌ Invalid environment variables:",
+    "Invalid environment variables:",
     JSON.stringify(parsed.error.format(), null, 2),
   );
-  // In serverless environments, don't hard-exit — throw instead
   throw new Error("Invalid environment variables");
 }
 
-export const env: Env = parsed.data;
+const data = parsed.data;
+
+if (data.NODE_ENV === "production") {
+  const missingCloudinary = [
+    !data.CLOUDINARY_CLOUD_NAME ? "CLOUDINARY_CLOUD_NAME" : null,
+    !data.CLOUDINARY_API_KEY ? "CLOUDINARY_API_KEY" : null,
+    !data.CLOUDINARY_API_SECRET ? "CLOUDINARY_API_SECRET" : null,
+  ].filter(Boolean);
+
+  if (missingCloudinary.length > 0) {
+    throw new Error(
+      `Missing required Cloudinary environment variables in production: ${missingCloudinary.join(", ")}`,
+    );
+  }
+}
+
+export const env: Env = data;
+
+export function isCloudinaryConfigured(): boolean {
+  return Boolean(
+    env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET,
+  );
+}

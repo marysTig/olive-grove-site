@@ -4,9 +4,12 @@ import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import path from "path";
+import { fileURLToPath } from "node:url";
 
 import modernRoutes from "@server/routes/modern.routes";
 import { ApiError } from "@server/utils/ApiError";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app: Application = express();
 // Database connection is handled gracefully by the Supabase JS client.

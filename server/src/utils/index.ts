@@ -6,4 +6,3 @@ export { asyncHandler } from "./asyncHandler";
 export { generateSlug, generateUniqueSlug } from "./slugGenerator";
 export { parsePagination, buildPaginationResult } from "./pagination";
 export type { PaginationParams, PaginationResult } from "./pagination";
-export { generateOrderNumber } from "./orderNumberGenerator";
