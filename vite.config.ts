@@ -8,6 +8,9 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  nitro: {
+    preset: "vercel",
+  },
   resolve: {
     tsconfigPaths: true,
     alias: {
