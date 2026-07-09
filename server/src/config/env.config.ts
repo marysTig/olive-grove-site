@@ -2,23 +2,23 @@ import { z } from "zod";
 import dotenv from "dotenv";
 import path from "path";
 
-// Load .env file from server root
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+// Load .env file from server root (only in non-serverless environments)
+try {
+  dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
+} catch {
+  // In Vercel serverless, env vars are injected directly — this is fine
+}
 
 const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().positive().default(5000),
 
-  // MongoDB
-  MONGODB_URI: z
-    .string()
-    .url()
-    .min(1, "MONGODB_URI is required")
-    .default("mongodb://127.0.0.1:27017/olive-grove-emporium"),
-
   // JWT
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  JWT_SECRET: z
+    .string()
+    .min(32, "JWT_SECRET must be at least 32 characters")
+    .default("supersecret_jwt_key_that_is_at_least_32_characters_long"),
   JWT_EXPIRES_IN: z.string().default("7d"),
   JWT_COOKIE_EXPIRES_IN: z.coerce.number().positive().default(7),
 
@@ -26,7 +26,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z
     .string()
     .default(
-      "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+      "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,https://olive-grove-site.vercel.app",
     ),
 
   // Rate Limiting
@@ -53,7 +53,8 @@ if (!parsed.success) {
     "❌ Invalid environment variables:",
     JSON.stringify(parsed.error.format(), null, 2),
   );
-  process.exit(1);
+  // In serverless environments, don't hard-exit — throw instead
+  throw new Error("Invalid environment variables");
 }
 
 export const env: Env = parsed.data;
