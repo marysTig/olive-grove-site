@@ -1,5 +1,5 @@
-import rateLimit from 'express-rate-limit';
-import { env } from './env.config';
+import rateLimit from "express-rate-limit";
+import { env } from "./env.config";
 
 export const rateLimiterOptions = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
@@ -9,7 +9,7 @@ export const rateLimiterOptions = rateLimit({
   message: {
     success: false,
     statusCode: 429,
-    message: 'Too many requests, please try again later.',
+    message: "Too many requests, please try again later.",
   },
-  skip: () => env.NODE_ENV === 'test',
+  skip: () => env.NODE_ENV === "test",
 });

@@ -9,16 +9,13 @@ interface AdminOnlyProps {
 
 /**
  * AdminOnly component renders its children only if the current user
- * is authenticated as an administrator (via Supabase or local Express auth).
+ * is authenticated as an administrator via the local Express auth flow.
  */
 export function AdminOnly({ children, fallback = null }: AdminOnlyProps) {
-  const { role: supabaseRole, isAdmin: isSupabaseAdmin } = useAuth();
+  const { role, isAdmin } = useAuth();
   const { user: adminUser } = useAdminAuth();
 
-  const isSystemAdmin = 
-    supabaseRole === "admin" || 
-    isSupabaseAdmin || 
-    adminUser?.role === "admin";
+  const isSystemAdmin = role === "admin" || isAdmin || adminUser?.role === "admin";
 
   if (isSystemAdmin) {
     return <>{children}</>;

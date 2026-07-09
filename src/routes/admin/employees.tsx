@@ -315,13 +315,17 @@ function AdminEmployees() {
                 {data.users.map((u: User) => (
                   <tr key={u.id} className="hover:bg-muted/10 transition-colors">
                     <td className="px-6 py-4 font-medium">{u.fullName}</td>
-                    <td className="px-6 py-4 text-muted-foreground" dir="ltr">{u.email}</td>
+                    <td className="px-6 py-4 text-muted-foreground" dir="ltr">
+                      {u.email}
+                    </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        u.role === "admin"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-secondary/20 text-secondary-foreground"
-                      }`}>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          u.role === "admin"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-secondary/20 text-secondary-foreground"
+                        }`}
+                      >
                         <Shield className="h-3 w-3" />
                         {u.role === "admin" ? "Admin" : "Client"}
                       </span>
@@ -348,9 +352,7 @@ function AdminEmployees() {
                       </button>
                     </td>
                     <td className="px-6 py-4 text-muted-foreground">
-                      {u.lastLogin
-                        ? new Date(u.lastLogin).toLocaleString()
-                        : "Jamais"}
+                      {u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "Jamais"}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1.5">
@@ -436,19 +438,11 @@ function AdminEmployees() {
               className="space-y-4"
             >
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Nom Complet
-                </label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
+                <label className="text-xs font-semibold text-muted-foreground">Nom Complet</label>
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Adresse email
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground">Adresse email</label>
                 <Input
                   type="email"
                   value={email}
@@ -457,9 +451,7 @@ function AdminEmployees() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Mot de passe
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground">Mot de passe</label>
                 <Input
                   type="password"
                   value={password}
@@ -469,9 +461,7 @@ function AdminEmployees() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Rôle
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground">Rôle</label>
                 <select
                   aria-label="Sélectionner un rôle"
                   value={role}
@@ -515,19 +505,11 @@ function AdminEmployees() {
               className="space-y-4"
             >
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Nom Complet
-                </label>
-                <Input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
+                <label className="text-xs font-semibold text-muted-foreground">Nom Complet</label>
+                <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Adresse email
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground">Adresse email</label>
                 <Input
                   type="email"
                   value={email}
@@ -536,9 +518,7 @@ function AdminEmployees() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground">
-                  Rôle
-                </label>
+                <label className="text-xs font-semibold text-muted-foreground">Rôle</label>
                 <select
                   aria-label="Sélectionner un rôle"
                   value={role}

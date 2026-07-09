@@ -13,43 +13,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ImageIcon,
-  Package,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-  Upload,
-  X,
-} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ImageIcon, Package, Pencil, Plus, Search, Star, Trash2, Upload, X } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { type Product, type ProductStatus } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/products")({
   component: AdminProducts,
 });
-
-interface AdminProduct {
-  id: string;
-  name_fr: string;
-  name_ar: string;
-  slug: string;
-  description_fr?: string;
-  description_ar?: string;
-  price: number;
-  discount_pct: number;
-  stock: number;
-  category_id?: string | null;
-  images: string[];
-  image_public_ids: string[];
-  badge?: string | null;
-  volume_ml?: number | null;
-  origin?: string | null;
-  harvest_date?: string | null;
-  featured: boolean;
-  active: boolean;
-  createdAt?: string;
-}
 
 interface ProductFormState {
   name_fr: string;
@@ -58,11 +29,9 @@ interface ProductFormState {
   description_ar: string;
   price: string;
   discount_pct: string;
-  stock: string;
-  category_id: string;
+  quantity: string;
   images: string[];
   image_public_ids: string[];
-  badge: string;
   volume_ml: string;
   origin: string;
   harvest_date: string;
@@ -80,11 +49,9 @@ function createEmptyForm(): ProductFormState {
     description_ar: "",
     price: "",
     discount_pct: "",
-    stock: "",
-    category_id: "",
+    quantity: "",
     images: [],
     image_public_ids: [],
-    badge: "",
     volume_ml: "",
     origin: "",
     harvest_date: "",
@@ -93,10 +60,36 @@ function createEmptyForm(): ProductFormState {
   };
 }
 
+function getStatusColor(status: ProductStatus) {
+  switch (status) {
+    case "in_stock":
+      return "bg-green-100 text-green-800";
+    case "low_stock":
+      return "bg-yellow-100 text-yellow-800";
+    case "out_of_stock":
+      return "bg-red-100 text-red-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+}
+
+function getStatusText(status: ProductStatus) {
+  switch (status) {
+    case "in_stock":
+      return "En stock";
+    case "low_stock":
+      return "Stock faible";
+    case "out_of_stock":
+      return "Rupture de stock";
+    default:
+      return "";
+  }
+}
+
 function AdminProducts() {
   const { hasPermission } = useAdminAuth();
   const navigate = useNavigate();
-  const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -148,7 +141,7 @@ function AdminProducts() {
     setIsDialogOpen(true);
   };
 
-  const handleOpenEdit = (product: AdminProduct) => {
+  const handleOpenEdit = (product: Product) => {
     setEditingId(product.id);
     setForm({
       name_fr: product.name_fr || "",
@@ -157,14 +150,14 @@ function AdminProducts() {
       description_ar: product.description_ar || "",
       price: String(product.price ?? 0),
       discount_pct: String(product.discount_pct ?? 0),
-      stock: String(product.stock ?? 0),
-      category_id: product.category_id || "",
+      quantity: String(product.quantity ?? 0),
       images: product.images || [],
       image_public_ids: product.image_public_ids || [],
-      badge: product.badge || "",
       volume_ml: product.volume_ml ? String(product.volume_ml) : "",
       origin: product.origin || "",
-      harvest_date: product.harvest_date || "",
+      harvest_date: product.harvest_date
+        ? new Date(product.harvest_date).toISOString().split("T")[0]
+        : "",
       featured: Boolean(product.featured),
       active: Boolean(product.active),
     });
@@ -186,12 +179,10 @@ function AdminProducts() {
         ...form,
         price: Number(form.price || 0),
         discount_pct: Number(form.discount_pct || 0),
-        stock: Number(form.stock || 0),
+        quantity: Number(form.quantity || 0),
         volume_ml: form.volume_ml ? Number(form.volume_ml) : null,
         featured: Boolean(form.featured),
         active: Boolean(form.active),
-        category_id: form.category_id || null,
-        badge: form.badge || null,
       };
 
       const url = editingId ? `${API_BASE}/products/${editingId}` : `${API_BASE}/products`;
@@ -205,7 +196,7 @@ function AdminProducts() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Échec de l’enregistrement");
 
-      const product = json.data as AdminProduct;
+      const product = json.data as Product;
       setProducts((current) => {
         if (editingId) {
           return current.map((item) => (item.id === product.id ? product : item));
@@ -218,6 +209,23 @@ function AdminProducts() {
       setStatusMessage(error instanceof Error ? error.message : "Échec de l’enregistrement");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleToggleFeatured = async (product: Product) => {
+    try {
+      const res = await fetch(`${API_BASE}/products/${product.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...product, featured: !product.featured }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Erreur");
+      const updated = json.data as Product;
+      setProducts((current) => current.map((p) => (p.id === updated.id ? updated : p)));
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Erreur");
     }
   };
 
@@ -256,10 +264,10 @@ function AdminProducts() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Upload impossible");
-      const upload = json.data as { url: string; public_id: string };
+      const upload = json.data as { secure_url: string; public_id: string };
       setForm((current) => ({
         ...current,
-        images: [...current.images, upload.url],
+        images: [...current.images, upload.secure_url],
         image_public_ids: [...current.image_public_ids, upload.public_id],
       }));
       setStatusMessage("Image ajoutée");
@@ -283,9 +291,7 @@ function AdminProducts() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-olive-dark">
-            Gestion des produits
-          </h1>
+          <h1 className="font-display text-2xl font-bold text-olive-dark">Gestion des produits</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Ajoutez, modifiez et gérez vos produits avec upload d’images.
           </p>
@@ -334,7 +340,11 @@ function AdminProducts() {
                 <div className="flex items-start gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     {product.images?.[0] ? (
-                      <img src={product.images[0]} alt={product.name_fr} className="h-11 w-11 rounded-xl object-cover" />
+                      <img
+                        src={product.images[0]}
+                        alt={product.name_fr}
+                        className="h-11 w-11 rounded-xl object-cover"
+                      />
                     ) : (
                       <ImageIcon className="h-5 w-5" />
                     )}
@@ -342,17 +352,35 @@ function AdminProducts() {
                   <div>
                     <p className="font-semibold text-foreground">{product.name_fr}</p>
                     <p className="text-sm text-muted-foreground">{product.slug}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {product.price.toFixed(2)} DA • Stock {product.stock}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {product.price.toFixed(2)} DA • Qty {product.quantity}
+                      </p>
+                      <Badge className={getStatusColor(product.status)}>
+                        {getStatusText(product.status)}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    title={product.featured ? "Retirer des vedettes" : "Mettre en vedette"}
+                    onClick={() => void handleToggleFeatured(product)}
+                    className={product.featured ? "border-yellow-400 text-yellow-600 hover:bg-yellow-50" : ""}
+                  >
+                    <Star className={`h-4 w-4 ${product.featured ? "fill-yellow-400 text-yellow-500" : ""}`} />
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenEdit(product)}>
                     <Pencil className="h-4 w-4" />
                     Éditer
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={() => void handleDelete(product.id)}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => void handleDelete(product.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                     Supprimer
                   </Button>
@@ -417,25 +445,14 @@ function AdminProducts() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Stock</label>
+                <label className="text-sm font-medium">Quantité</label>
                 <Input
                   type="number"
                   min="0"
-                  value={form.stock}
-                  onChange={(event) => handleFieldChange("stock", event.target.value)}
+                  value={form.quantity}
+                  onChange={(event) => handleFieldChange("quantity", event.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Catégorie</label>
-                <Input
-                  value={form.category_id}
-                  onChange={(event) => handleFieldChange("category_id", event.target.value)}
-                  placeholder="ID ou slug"
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Volume (ml)</label>
                 <Input
@@ -445,6 +462,9 @@ function AdminProducts() {
                   onChange={(event) => handleFieldChange("volume_ml", event.target.value)}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Origine</label>
                 <Input
@@ -452,23 +472,12 @@ function AdminProducts() {
                   onChange={(event) => handleFieldChange("origin", event.target.value)}
                 />
               </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Badge</label>
-                <Input
-                  value={form.badge}
-                  onChange={(event) => handleFieldChange("badge", event.target.value)}
-                  placeholder="Nouveau"
-                />
-              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Date de récolte</label>
                 <Input
+                  type="date"
                   value={form.harvest_date}
                   onChange={(event) => handleFieldChange("harvest_date", event.target.value)}
-                  placeholder="2024"
                 />
               </div>
             </div>
@@ -496,7 +505,10 @@ function AdminProducts() {
                 <p className="font-medium">Produit en vedette</p>
                 <p className="text-sm text-muted-foreground">Afficher sur la page d’accueil.</p>
               </div>
-              <Switch checked={form.featured} onCheckedChange={(value) => handleFieldChange("featured", value)} />
+              <Switch
+                checked={form.featured}
+                onCheckedChange={(value) => handleFieldChange("featured", value)}
+              />
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border bg-background/80 px-4 py-3">
@@ -504,7 +516,10 @@ function AdminProducts() {
                 <p className="font-medium">Produit actif</p>
                 <p className="text-sm text-muted-foreground">Visible par les clients.</p>
               </div>
-              <Switch checked={form.active} onCheckedChange={(value) => handleFieldChange("active", value)} />
+              <Switch
+                checked={form.active}
+                onCheckedChange={(value) => handleFieldChange("active", value)}
+              />
             </div>
 
             <div className="space-y-2">
@@ -512,13 +527,25 @@ function AdminProducts() {
               <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-background/70 px-4 py-6 text-sm text-muted-foreground">
                 <Upload className="h-4 w-4" />
                 {isUploading ? "Téléversement en cours..." : "Ajouter une image"}
-                <input type="file" accept="image/*" className="hidden" onChange={handleUploadImage} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUploadImage}
+                />
               </label>
               {form.images.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {form.images.map((image, index) => (
-                    <div key={`${image}-${index}`} className="relative overflow-hidden rounded-xl border border-border">
-                      <img src={image} alt={`${form.name_fr} ${index + 1}`} className="h-32 w-full object-cover" />
+                    <div
+                      key={`${image}-${index}`}
+                      className="relative overflow-hidden rounded-xl border border-border"
+                    >
+                      <img
+                        src={image}
+                        alt={`${form.name_fr} ${index + 1}`}
+                        className="h-32 w-full object-cover"
+                      />
                       <button
                         type="button"
                         aria-label={`Supprimer l'image ${index + 1}`}

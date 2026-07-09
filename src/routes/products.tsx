@@ -8,7 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
@@ -20,9 +24,16 @@ export const Route = createFileRoute("/products")({
   head: () => ({
     meta: [
       { title: "Nos Produits — Lem3ansra n Jeddi" },
-      { name: "description", content: "Découvrez notre gamme d'huiles d'olive premium extra vierge, aromatisées et coffrets cadeaux." },
+      {
+        name: "description",
+        content:
+          "Découvrez notre gamme d'huiles d'olive premium extra vierge, aromatisées et coffrets cadeaux.",
+      },
       { property: "og:title", content: "Nos Produits — Lem3ansra n Jeddi" },
-      { property: "og:description", content: "Huiles d'olive premium extra vierge, aromatisées et coffrets cadeaux." },
+      {
+        property: "og:description",
+        content: "Huiles d'olive premium extra vierge, aromatisées et coffrets cadeaux.",
+      },
     ],
   }),
   component: ProductsPage,
@@ -30,7 +41,7 @@ export const Route = createFileRoute("/products")({
 
 function ProductsPage() {
   const { t, lang } = useI18n();
-  const { data: products = [], isLoading } = useQuery(productsQuery());
+  const { data: products = [], isLoading, isError, error } = useQuery(productsQuery());
   const { data: categories = [] } = useQuery(categoriesQuery());
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -39,18 +50,24 @@ function ProductsPage() {
 
   const filtered = useMemo(() => {
     let list = [...products];
-    if (category !== "all") list = list.filter((p) => p.category_id === category);
-    if (inStock) list = list.filter((p) => p.stock > 0);
+    if (category !== "all") list = list.filter((p) => p && p.category_id === category);
+    if (inStock) list = list.filter((p) => p && (p.quantity ?? 0) > 0);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
-        (p) => p.name_fr.toLowerCase().includes(q) || p.name_ar.includes(search),
+        (p) => p && (p.name_fr.toLowerCase().includes(q) || p.name_ar.includes(search)),
       );
     }
     switch (sort) {
-      case "price_asc": list.sort((a, b) => finalPrice(a) - finalPrice(b)); break;
-      case "price_desc": list.sort((a, b) => finalPrice(b) - finalPrice(a)); break;
-      case "popular": list.sort((a, b) => b.rating - a.rating); break;
+      case "price_asc":
+        list.sort((a, b) => finalPrice(a) - finalPrice(b));
+        break;
+      case "price_desc":
+        list.sort((a, b) => finalPrice(b) - finalPrice(a));
+        break;
+      case "popular":
+        // No rating system anymore, sort by newest instead
+        break;
     }
     return list;
   }, [products, category, inStock, search, sort]);
@@ -84,7 +101,11 @@ function ProductsPage() {
           <div>
             <p className="mb-2 text-sm font-semibold">{t("filter_category")}</p>
             <div className="space-y-1">
-              <FilterOption active={category === "all"} onClick={() => setCategory("all")} label={t("filter_all")} />
+              <FilterOption
+                active={category === "all"}
+                onClick={() => setCategory("all")}
+                label={t("filter_all")}
+              />
               {categories.map((c) => (
                 <FilterOption
                   key={c.id}
@@ -98,16 +119,22 @@ function ProductsPage() {
 
           <div className="flex items-center gap-2">
             <Checkbox id="instock" checked={inStock} onCheckedChange={(v) => setInStock(!!v)} />
-            <Label htmlFor="instock" className="text-sm font-normal">{t("filter_instock")}</Label>
+            <Label htmlFor="instock" className="text-sm font-normal">
+              {t("filter_instock")}
+            </Label>
           </div>
         </aside>
 
         {/* Products */}
         <div>
           <div className="mb-6 flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{filtered.length} {t("nav_products").toLowerCase()}</p>
+            <p className="text-sm text-muted-foreground">
+              {filtered.length} {t("nav_products").toLowerCase()}
+            </p>
             <Select value={sort} onValueChange={setSort}>
-              <SelectTrigger className="w-48 rounded-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-48 rounded-full">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="newest">{t("sort_newest")}</SelectItem>
                 <SelectItem value="popular">{t("sort_popular")}</SelectItem>
@@ -123,11 +150,22 @@ function ProductsPage() {
                 <Skeleton key={i} className="aspect-[3/4] rounded-3xl" />
               ))}
             </div>
+          ) : isError ? (
+            <div className="py-20 text-center space-y-4">
+              <p className="text-destructive font-medium">
+                {lang === "ar"
+                  ? "عذرًا، حدث خطأ أثناء تحميل المنتجات."
+                  : "Une erreur est survenue lors du chargement des produits."}
+              </p>
+              <p className="text-xs text-muted-foreground">{error?.message}</p>
+            </div>
           ) : filtered.length === 0 ? (
             <p className="py-20 text-center text-muted-foreground">{t("no_products")}</p>
           ) : (
             <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
-              {filtered.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
+              {filtered.map((p, i) => (
+                <ProductCard key={p.id} product={p} index={i} />
+              ))}
             </div>
           )}
         </div>
@@ -136,7 +174,15 @@ function ProductsPage() {
   );
 }
 
-function FilterOption({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function FilterOption({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
   return (
     <button
       onClick={onClick}

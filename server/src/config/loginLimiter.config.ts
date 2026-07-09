@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit from "express-rate-limit";
 
 /**
  * Strict rate limiter for the login endpoint.
@@ -13,7 +13,6 @@ export const loginLimiter = rateLimit({
   message: {
     success: false,
     statusCode: 429,
-    message:
-      'Too many login attempts. Please try again after 15 minutes.',
+    message: "Too many login attempts. Please try again after 15 minutes.",
   },
 });

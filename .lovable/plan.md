@@ -6,7 +6,6 @@ A premium, bilingual (Arabic + French, RTL-aware) olive oil storefront with a fu
 
 Your PRD suggested Express + Prisma + Neon + Vercel/Railway. Lovable apps don't run that architecture — I'll deliver the same capabilities natively:
 
-
 | Your spec                                                                       | Built as                                                   |
 | ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | React 19, Vite, TS, Tailwind 4, shadcn, Framer Motion, TanStack Query, RHF, Zod | Same — all native to this stack                            |
@@ -14,7 +13,6 @@ Your PRD suggested Express + Prisma + Neon + Vercel/Railway. Lovable apps don't 
 | JWT + refresh + RBAC                                                            | Lovable Cloud auth + a `user_roles` table (admin/customer) |
 | Cloudinary                                                                      | Lovable Cloud Storage                                      |
 | Vercel/Railway/Neon                                                             | Lovable hosting                                            |
-
 
 ## Design system (from your brand spec)
 

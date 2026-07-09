@@ -84,7 +84,13 @@ export function Navbar() {
     >
       <nav className="container-page flex items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2">
-          <img src={logo} alt="Lem3ansra n Jeddi" className="h-12 w-12 rounded-full object-contain" width={48} height={48} />
+          <img
+            src={logo}
+            alt="Lem3ansra n Jeddi"
+            className="h-12 w-12 rounded-full object-contain"
+            width={48}
+            height={48}
+          />
           <span
             className={cn(
               "hidden font-display text-lg font-semibold transition-colors duration-300 sm:block",
@@ -127,12 +133,15 @@ export function Navbar() {
               >
                 {l.label}
               </button>
-            )
+            ),
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <LanguageSwitcher className="hidden sm:inline-flex" variant={isHero ? "hero" : "default"} />
+          <LanguageSwitcher
+            className="hidden sm:inline-flex"
+            variant={isHero ? "hero" : "default"}
+          />
           <button
             onClick={() => setDrawerOpen(true)}
             className={cn(
@@ -191,7 +200,7 @@ export function Navbar() {
                   >
                     {l.label}
                   </button>
-                )
+                ),
               )}
               <LanguageSwitcher className="mt-2 self-start" />
             </div>
@@ -201,4 +210,3 @@ export function Navbar() {
     </header>
   );
 }
-

@@ -1,4 +1,6 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
+import mongoose, { Document, Schema, Model } from "mongoose";
+
+export type ProductStatus = "in_stock" | "low_stock" | "out_of_stock";
 
 export interface IProduct extends Document {
   _id: mongoose.Types.ObjectId;
@@ -9,33 +11,39 @@ export interface IProduct extends Document {
   description_ar?: string;
   price: number;
   discount_pct: number;
-  stock: number;
+  quantity: number;
+  status: ProductStatus;
   category_id?: string | null;
   images: string[];
   image_public_ids: string[];
   badge?: string | null;
   volume_ml?: number | null;
   origin?: string | null;
-  harvest_date?: string | null;
-  rating: number;
+  harvest_date?: Date | null;
   featured: boolean;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
+function computeStatus(quantity: number): ProductStatus {
+  if (quantity <= 0) return "out_of_stock";
+  if (quantity <= 10) return "low_stock";
+  return "in_stock";
+}
+
 const productSchema = new Schema<IProduct>(
   {
     name_fr: {
       type: String,
-      required: [true, 'Product name is required'],
+      required: [true, "Product name is required"],
       trim: true,
-      maxlength: [120, 'Product name cannot exceed 120 characters'],
+      maxlength: [120, "Product name cannot exceed 120 characters"],
     },
     name_ar: {
       type: String,
       trim: true,
-      default: '',
+      default: "",
     },
     slug: {
       type: String,
@@ -45,28 +53,33 @@ const productSchema = new Schema<IProduct>(
     },
     description_fr: {
       type: String,
-      default: '',
+      default: "",
     },
     description_ar: {
       type: String,
-      default: '',
+      default: "",
     },
     price: {
       type: Number,
       required: true,
-      min: [0, 'Price cannot be negative'],
+      min: [0, "Price cannot be negative"],
       default: 0,
     },
     discount_pct: {
       type: Number,
-      min: [0, 'Discount cannot be negative'],
-      max: [100, 'Discount cannot exceed 100%'],
+      min: [0, "Discount cannot be negative"],
+      max: [100, "Discount cannot exceed 100%"],
       default: 0,
     },
-    stock: {
+    quantity: {
       type: Number,
-      min: [0, 'Stock cannot be negative'],
+      min: [0, "Quantity cannot be negative"],
       default: 0,
+    },
+    status: {
+      type: String,
+      enum: ["in_stock", "low_stock", "out_of_stock"],
+      default: "out_of_stock",
     },
     category_id: {
       type: String,
@@ -93,12 +106,8 @@ const productSchema = new Schema<IProduct>(
       default: null,
     },
     harvest_date: {
-      type: String,
+      type: Date,
       default: null,
-    },
-    rating: {
-      type: Number,
-      default: 0,
     },
     featured: {
       type: Boolean,
@@ -119,8 +128,21 @@ const productSchema = new Schema<IProduct>(
         return ret;
       },
     },
-  }
+  },
 );
 
-const Product: Model<IProduct> = mongoose.model<IProduct>('Product', productSchema);
+productSchema.pre("save", function (next) {
+  this.status = computeStatus(this.quantity);
+  next();
+});
+
+productSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate() as { quantity?: number };
+  if (update.quantity !== undefined) {
+    this.set("status", computeStatus(update.quantity));
+  }
+  next();
+});
+
+const Product: Model<IProduct> = mongoose.model<IProduct>("Product", productSchema);
 export default Product;

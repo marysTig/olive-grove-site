@@ -20,9 +20,7 @@ const MAX_LIMIT = 100;
 /**
  * Parses pagination parameters from query strings with safe defaults.
  */
-export const parsePagination = (
-  query: Record<string, unknown>
-): PaginationParams => {
+export const parsePagination = (query: Record<string, unknown>): PaginationParams => {
   let page = Number(query.page) || DEFAULT_PAGE;
   let limit = Number(query.limit) || DEFAULT_LIMIT;
 
@@ -41,7 +39,7 @@ export const parsePagination = (
 export const buildPaginationResult = (
   page: number,
   limit: number,
-  total: number
+  total: number,
 ): PaginationResult => {
   const totalPages = Math.ceil(total / limit);
 

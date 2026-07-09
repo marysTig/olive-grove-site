@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
-import { asyncHandler } from '@/utils/asyncHandler';
-import { ApiResponse } from '@/utils/ApiResponse';
-import { AuthService } from '@/services/auth.service';
-import { ApiError } from '@/utils/ApiError';
-import User from '@/models/User.model';
+import { Request, Response } from "express";
+import { asyncHandler } from "@/utils/asyncHandler";
+import { ApiResponse } from "@/utils/ApiResponse";
+import { AuthService } from "@/services/auth.service";
+import { ApiError } from "@/utils/ApiError";
 
 /**
  * POST /api/v1/auth/login
@@ -22,8 +21,8 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // 3. Set cookie
   AuthService.setTokenCookie(res, token);
 
-  // 4. Return user (passwordHash stripped by toJSON transform)
-  ApiResponse.success(res, { user: user.toJSON() }, 'Login successful');
+  // 4. Return user
+  ApiResponse.success(res, { user }, "Login successful");
 });
 
 /**
@@ -32,7 +31,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
  */
 export const logout = asyncHandler(async (_req: Request, res: Response) => {
   AuthService.clearTokenCookie(res);
-  ApiResponse.success(res, null, 'Logged out successfully');
+  ApiResponse.success(res, null, "Logged out successfully");
 });
 
 /**
@@ -42,18 +41,18 @@ export const logout = asyncHandler(async (_req: Request, res: Response) => {
  */
 export const getMe = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
-    throw ApiError.unauthorized('Not authenticated');
+    throw ApiError.unauthorized("Not authenticated");
   }
 
-  // Fetch fresh user data from DB (req.user.id is set by protect middleware)
+  // Fetch fresh user data from DB
   const user = await AuthService.getUserById(req.user.id);
 
   if (!user) {
     AuthService.clearTokenCookie(res);
-    throw ApiError.unauthorized('User no longer exists or has been deactivated');
+    throw ApiError.unauthorized("User no longer exists or has been deactivated");
   }
 
-  ApiResponse.success(res, { user: user.toJSON() }, 'Authenticated');
+  ApiResponse.success(res, { user }, "Authenticated");
 });
 
 /**
@@ -63,30 +62,15 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
 export const adminLogin = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email }).select('+passwordHash');
+  const user = await AuthService.login(email, password);
 
-  if (!user) {
-    throw ApiError.unauthorized('Invalid email or password');
+  if (user.role !== "admin") {
+    throw ApiError.forbidden("Only administrators can access the admin panel.");
   }
-
-  if (!user.isActive) {
-    throw ApiError.forbidden('Your account has been deactivated. Contact an administrator.');
-  }
-
-  if (user.role !== 'admin') {
-    throw ApiError.forbidden('Only administrators can access the admin panel.');
-  }
-
-  const isMatch = await user.comparePassword(password);
-  if (!isMatch) {
-    throw ApiError.unauthorized('Invalid email or password');
-  }
-
-  user.lastLogin = new Date();
-  await user.save({ validateModifiedOnly: true });
 
   const token = AuthService.generateToken(user);
   AuthService.setTokenCookie(res, token);
 
-  ApiResponse.success(res, { user: user.toJSON() }, 'Admin login successful');
+  ApiResponse.success(res, { user }, "Admin login successful");
 });
+

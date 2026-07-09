@@ -1,12 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Trash2, Minus, Plus } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/lib/cart";
 import { useI18n } from "@/i18n";
@@ -19,7 +13,10 @@ export function CartDrawer() {
 
   return (
     <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-      <SheetContent side={dir === "rtl" ? "left" : "right"} className="flex w-full flex-col sm:max-w-md">
+      <SheetContent
+        side={dir === "rtl" ? "left" : "right"}
+        className="flex w-full flex-col sm:max-w-md"
+      >
         <SheetHeader>
           <SheetTitle className="font-display text-2xl">{t("cart_title")}</SheetTitle>
         </SheetHeader>
@@ -27,7 +24,12 @@ export function CartDrawer() {
         {items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
             <p className="text-muted-foreground">{t("cart_empty")}</p>
-            <Button asChild variant="outline" className="rounded-full" onClick={() => setDrawerOpen(false)}>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setDrawerOpen(false)}
+            >
               <Link to="/products">{t("cart_continue")}</Link>
             </Button>
           </div>
@@ -45,7 +47,9 @@ export function CartDrawer() {
                   />
                   <div className="flex flex-1 flex-col">
                     <p className="text-sm font-medium leading-tight">{productName(item, lang)}</p>
-                    <p className="text-sm text-accent-foreground/80">{formatPrice(item.price, lang)}</p>
+                    <p className="text-sm text-accent-foreground/80">
+                      {formatPrice(item.price, lang)}
+                    </p>
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex items-center gap-1 rounded-full border border-border">
                         <button
@@ -81,7 +85,11 @@ export function CartDrawer() {
                 <span>{formatPrice(subtotal, lang)}</span>
               </div>
               <div className="grid gap-2">
-                <Button asChild className="w-full rounded-full" onClick={() => setDrawerOpen(false)}>
+                <Button
+                  asChild
+                  className="w-full rounded-full"
+                  onClick={() => setDrawerOpen(false)}
+                >
                   <Link to="/checkout">{t("checkout")}</Link>
                 </Button>
                 <Button

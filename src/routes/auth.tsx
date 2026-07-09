@@ -31,7 +31,9 @@ function AuthPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      toast.error("L'inscription publique est désactivée. Seuls les administrateurs peuvent créer des comptes.");
+      toast.error(
+        "L'inscription publique est désactivée. Seuls les administrateurs peuvent créer des comptes.",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -55,11 +57,26 @@ function AuthPage() {
         <form onSubmit={submit} className="space-y-4">
           <div>
             <Label className="mb-1.5 block text-sm">{t("email")}</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required dir="ltr" className="rounded-xl" />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              dir="ltr"
+              className="rounded-xl"
+            />
           </div>
           <div>
             <Label className="mb-1.5 block text-sm">{t("password")}</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} dir="ltr" className="rounded-xl" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              dir="ltr"
+              className="rounded-xl"
+            />
           </div>
           <Button type="submit" disabled={loading} className="w-full rounded-full">
             {loading ? t("loading") : t("signin_btn")}
@@ -67,7 +84,8 @@ function AuthPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          L'inscription publique est désactivée. Les nouveaux comptes clients sont créés par l'administrateur depuis le tableau de bord.
+          L'inscription publique est désactivée. Les nouveaux comptes clients sont créés par
+          l'administrateur depuis le tableau de bord.
         </p>
       </motion.div>
     </div>

@@ -7,9 +7,15 @@ export const Route = createFileRoute("/about")({
   head: () => ({
     meta: [
       { title: "À propos — Lem3ansra n Jeddi" },
-      { name: "description", content: "L'histoire de notre famille et de notre huile d'olive traditionnelle algérienne." },
+      {
+        name: "description",
+        content: "L'histoire de notre famille et de notre huile d'olive traditionnelle algérienne.",
+      },
       { property: "og:title", content: "À propos — Lem3ansra n Jeddi" },
-      { property: "og:description", content: "L'histoire de notre famille et de notre huile d'olive traditionnelle." },
+      {
+        property: "og:description",
+        content: "L'histoire de notre famille et de notre huile d'olive traditionnelle.",
+      },
     ],
   }),
   component: About,
@@ -23,7 +29,9 @@ function About() {
       <div className="container-page pt-28 pb-16">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
-            <h1 className="font-display text-4xl font-bold sm:text-5xl">{fr ? "Notre histoire" : "قصتنا"}</h1>
+            <h1 className="font-display text-4xl font-bold sm:text-5xl">
+              {fr ? "Notre histoire" : "قصتنا"}
+            </h1>
             <p className="mt-5 leading-relaxed text-muted-foreground">
               {fr
                 ? "Lem3ansra n Jeddi — « le pressoir de mon grand-père » — perpétue un savoir-faire familial transmis de génération en génération. Nos oliviers, cultivés avec patience dans les collines algériennes, donnent une huile pure, extraite à froid et sans aucun additif."
@@ -37,7 +45,12 @@ function About() {
           </div>
           <img src={aboutFamily} alt="" className="rounded-3xl shadow-elegant" loading="lazy" />
         </div>
-        <img src={galleryHarvest} alt="" className="mt-10 h-72 w-full rounded-3xl object-cover" loading="lazy" />
+        <img
+          src={galleryHarvest}
+          alt=""
+          className="mt-10 h-72 w-full rounded-3xl object-cover"
+          loading="lazy"
+        />
       </div>
     </StoreLayout>
   );

@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Product } from "./types";
 import { finalPrice } from "./types";
 
@@ -16,7 +9,7 @@ export interface CartItem {
   image_url: string | null;
   price: number;
   quantity: number;
-  stock: number;
+  available_quantity: number;
 }
 
 interface CartValue {
@@ -60,7 +53,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return prev.map((i) =>
           i.id === product.id
-            ? { ...i, quantity: Math.min(i.quantity + qty, product.stock || 99) }
+            ? { ...i, quantity: Math.min(i.quantity + qty, product.quantity || 99) }
             : i,
         );
       }
@@ -72,15 +65,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
           name_fr: product.name_fr,
           image_url: product.images?.[0] ?? null,
           price,
-          quantity: Math.min(qty, product.stock || 99),
-          stock: product.stock,
+          quantity: Math.min(qty, product.quantity || 99),
+          available_quantity: product.quantity,
         },
       ];
     });
   };
 
-  const remove: CartValue["remove"] = (id) =>
-    setItems((prev) => prev.filter((i) => i.id !== id));
+  const remove: CartValue["remove"] = (id) => setItems((prev) => prev.filter((i) => i.id !== id));
 
   const setQty: CartValue["setQty"] = (id, qty) =>
     setItems((prev) =>

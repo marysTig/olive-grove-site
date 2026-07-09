@@ -14,9 +14,7 @@ export function LanguageSwitcher({ className, variant = "default" }: LanguageSwi
     <div
       className={cn(
         "inline-flex items-center rounded-full p-0.5 text-xs font-medium transition-colors duration-300",
-        isHero
-          ? "border border-white/30 bg-white/10"
-          : "border border-border bg-background/60",
+        isHero ? "border border-white/30 bg-white/10" : "border border-border bg-background/60",
         className,
       )}
     >
@@ -53,4 +51,3 @@ export function LanguageSwitcher({ className, variant = "default" }: LanguageSwi
     </div>
   );
 }
-

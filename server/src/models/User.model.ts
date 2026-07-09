@@ -1,8 +1,8 @@
-import mongoose, { Document, Schema, Model } from 'mongoose';
-import bcrypt from 'bcryptjs';
+import mongoose, { Document, Schema, Model } from "mongoose";
+import bcrypt from "bcryptjs";
 
 // ── Role enum ──────────────────────────────────────────────────
-export const ROLES = ['admin', 'client'] as const;
+export const ROLES = ["admin", "client"] as const;
 export type Role = (typeof ROLES)[number];
 
 // ── User document interface ────────────────────────────────────
@@ -14,6 +14,7 @@ export interface IUser extends Document {
   role: Role;
   isActive: boolean;
   lastLogin: Date | null;
+  language: string;
   createdAt: Date;
   updatedAt: Date;
 
@@ -26,34 +27,31 @@ const userSchema = new Schema<IUser>(
   {
     fullName: {
       type: String,
-      required: [true, 'Full name is required'],
+      required: [true, "Full name is required"],
       trim: true,
-      maxlength: [100, 'Full name cannot exceed 100 characters'],
+      maxlength: [100, "Full name cannot exceed 100 characters"],
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
-      match: [
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-        'Please provide a valid email address',
-      ],
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please provide a valid email address"],
     },
     passwordHash: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
       select: false, // Never returned by default in queries
     },
     role: {
       type: String,
       enum: {
         values: ROLES,
-        message: 'Role must be either admin or client',
+        message: "Role must be either admin or client",
       },
-      default: 'client',
+      default: "client",
     },
     isActive: {
       type: Boolean,
@@ -62,6 +60,11 @@ const userSchema = new Schema<IUser>(
     lastLogin: {
       type: Date,
       default: null,
+    },
+    language: {
+      type: String,
+      enum: ["fr", "ar"],
+      default: "fr",
     },
   },
   {
@@ -85,14 +88,13 @@ const userSchema = new Schema<IUser>(
         return ret;
       },
     },
-  }
+  },
 );
 
-
 // ── Pre-save: hash password if modified ────────────────────────
-userSchema.pre<IUser>('save', async function (next) {
+userSchema.pre<IUser>("save", async function (next) {
   // Only hash if the passwordHash field is new or modified
-  if (!this.isModified('passwordHash')) return next();
+  if (!this.isModified("passwordHash")) return next();
 
   const salt = await bcrypt.genSalt(12);
   this.passwordHash = await bcrypt.hash(this.passwordHash, salt);
@@ -100,12 +102,10 @@ userSchema.pre<IUser>('save', async function (next) {
 });
 
 // ── Instance method: compare password ──────────────────────────
-userSchema.methods.comparePassword = async function (
-  candidate: string
-): Promise<boolean> {
+userSchema.methods.comparePassword = async function (candidate: string): Promise<boolean> {
   return bcrypt.compare(candidate, this.passwordHash);
 };
 
 // ── Export model ───────────────────────────────────────────────
-const User: Model<IUser> = mongoose.model<IUser>('User', userSchema);
+const User: Model<IUser> = mongoose.model<IUser>("User", userSchema);
 export default User;

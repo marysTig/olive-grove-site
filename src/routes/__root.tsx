@@ -14,7 +14,6 @@ import { I18nProvider } from "@/i18n";
 import { CartProvider } from "@/lib/cart";
 import { AuthProvider } from "@/lib/auth";
 import { AdminAuthProvider } from "@/lib/admin-auth";
-import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -119,7 +118,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body suppressHydrationWarning>
-        {children}
+        <I18nProvider>{children}</I18nProvider>
         <Scripts />
       </body>
     </html>
@@ -131,27 +130,21 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
-    });
-    return () => sub.subscription.unsubscribe();
+    router.invalidate();
+    queryClient.invalidateQueries();
   }, [router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <I18nProvider>
-        <AuthProvider>
-          <AdminAuthProvider>
-            <CartProvider>
-              {/* Required: nested routes render here. */}
-              <Outlet />
-              <Toaster position="top-center" richColors />
-            </CartProvider>
-          </AdminAuthProvider>
-        </AuthProvider>
-      </I18nProvider>
+      <AuthProvider>
+        <AdminAuthProvider>
+          <CartProvider>
+            {/* Required: nested routes render here. */}
+            <Outlet />
+            <Toaster position="top-center" richColors />
+          </CartProvider>
+        </AdminAuthProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

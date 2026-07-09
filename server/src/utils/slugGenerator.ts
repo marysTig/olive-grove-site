@@ -5,15 +5,15 @@
 export const generateSlug = (text: string): string => {
   return text
     .toString()
-    .normalize('NFD')                     // Decompose accented chars
-    .replace(/[\u0300-\u036f]/g, '')      // Strip diacritics
-    .replace(/[\u0600-\u06FF]+/g, '')     // Strip Arabic characters
+    .normalize("NFD") // Decompose accented chars
+    .replace(/[\u0300-\u036f]/g, "") // Strip diacritics
+    .replace(/[\u0600-\u06FF]+/g, "") // Strip Arabic characters
     .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9\s-]/g, '')        // Remove non-alphanumeric
-    .replace(/[\s_]+/g, '-')             // Spaces/underscores → hyphens
-    .replace(/-+/g, '-')                 // Collapse consecutive hyphens
-    .replace(/^-+|-+$/g, '');            // Trim leading/trailing hyphens
+    .replace(/[^a-z0-9\s-]/g, "") // Remove non-alphanumeric
+    .replace(/[\s_]+/g, "-") // Spaces/underscores → hyphens
+    .replace(/-+/g, "-") // Collapse consecutive hyphens
+    .replace(/^-+|-+$/g, ""); // Trim leading/trailing hyphens
 };
 
 /**

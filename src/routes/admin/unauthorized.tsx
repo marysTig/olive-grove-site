@@ -18,12 +18,10 @@ function UnauthorizedPage() {
       </div>
 
       <div className="max-w-md space-y-2">
-        <h1 className="font-display text-2xl font-bold text-foreground">
-          Accès non autorisé
-        </h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">Accès non autorisé</h1>
         <p className="text-sm text-muted-foreground">
-          Votre rôle ({user?.role === "admin" ? "Administrateur" : "Employé"})
-          ne dispose pas des permissions nécessaires pour accéder à cette page.
+          Votre rôle ({user?.role === "admin" ? "Administrateur" : "Employé"}) ne dispose pas des
+          permissions nécessaires pour accéder à cette page.
         </p>
       </div>
 

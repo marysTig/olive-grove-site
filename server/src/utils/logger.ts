@@ -1,4 +1,4 @@
-type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+type LogLevel = "info" | "warn" | "error" | "debug";
 
 interface LogEntry {
   timestamp: string;
@@ -12,8 +12,8 @@ class Logger {
   private readonly isSilent: boolean;
 
   constructor() {
-    this.isProduction = process.env.NODE_ENV === 'production';
-    this.isSilent = process.env.NODE_ENV === 'test';
+    this.isProduction = process.env.NODE_ENV === "production";
+    this.isSilent = process.env.NODE_ENV === "test";
   }
 
   private formatMessage(level: LogLevel, message: string, data?: unknown): LogEntry {
@@ -34,10 +34,10 @@ class Logger {
       // Structured JSON in production for log aggregation
       const output = JSON.stringify(entry);
       switch (level) {
-        case 'error':
+        case "error":
           console.error(output);
           break;
-        case 'warn':
+        case "warn":
           console.warn(output);
           break;
         default:
@@ -47,36 +47,36 @@ class Logger {
       // Readable format in development
       const prefix = `[${entry.timestamp}] [${level.toUpperCase()}]`;
       switch (level) {
-        case 'error':
-          console.error(prefix, message, data ?? '');
+        case "error":
+          console.error(prefix, message, data ?? "");
           break;
-        case 'warn':
-          console.warn(prefix, message, data ?? '');
+        case "warn":
+          console.warn(prefix, message, data ?? "");
           break;
-        case 'debug':
-          console.debug(prefix, message, data ?? '');
+        case "debug":
+          console.debug(prefix, message, data ?? "");
           break;
         default:
-          console.log(prefix, message, data ?? '');
+          console.log(prefix, message, data ?? "");
       }
     }
   }
 
   info(message: string, data?: unknown): void {
-    this.log('info', message, data);
+    this.log("info", message, data);
   }
 
   warn(message: string, data?: unknown): void {
-    this.log('warn', message, data);
+    this.log("warn", message, data);
   }
 
   error(message: string, data?: unknown): void {
-    this.log('error', message, data);
+    this.log("error", message, data);
   }
 
   debug(message: string, data?: unknown): void {
     if (!this.isProduction) {
-      this.log('debug', message, data);
+      this.log("debug", message, data);
     }
   }
 }

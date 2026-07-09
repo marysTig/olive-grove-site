@@ -32,21 +32,49 @@ function CartPage() {
           <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
-                  <img src={resolveImage(item.image_url)} alt={productName(item, lang)} className="h-24 w-24 rounded-xl object-cover" width={96} height={96} />
+                <div
+                  key={item.id}
+                  className="flex gap-4 rounded-2xl border border-border bg-card p-4"
+                >
+                  <img
+                    src={resolveImage(item.image_url)}
+                    alt={productName(item, lang)}
+                    className="h-24 w-24 rounded-xl object-cover"
+                    width={96}
+                    height={96}
+                  />
                   <div className="flex flex-1 flex-col">
                     <p className="font-medium">{productName(item, lang)}</p>
-                    <p className="text-sm text-accent-foreground/80">{formatPrice(item.price, lang)}</p>
+                    <p className="text-sm text-accent-foreground/80">
+                      {formatPrice(item.price, lang)}
+                    </p>
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex items-center rounded-full border border-border">
-                        <button className="p-2 text-muted-foreground hover:text-foreground" onClick={() => setQty(item.id, item.quantity - 1)}><Minus className="h-3.5 w-3.5" /></button>
+                        <button
+                          className="p-2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setQty(item.id, item.quantity - 1)}
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
                         <span className="w-8 text-center text-sm">{item.quantity}</span>
-                        <button className="p-2 text-muted-foreground hover:text-foreground" onClick={() => setQty(item.id, item.quantity + 1)}><Plus className="h-3.5 w-3.5" /></button>
+                        <button
+                          className="p-2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setQty(item.id, item.quantity + 1)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
                       </div>
-                      <button className="text-muted-foreground hover:text-destructive" onClick={() => remove(item.id)}><Trash2 className="h-4 w-4" /></button>
+                      <button
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => remove(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="font-semibold">{formatPrice(item.price * item.quantity, lang)}</div>
+                  <div className="font-semibold">
+                    {formatPrice(item.price * item.quantity, lang)}
+                  </div>
                 </div>
               ))}
             </div>
@@ -57,7 +85,9 @@ function CartPage() {
                 <span>{t("subtotal")}</span>
                 <span>{formatPrice(subtotal, lang)}</span>
               </div>
-              <p className="mb-4 text-xs text-muted-foreground">{t("shipping")} {lang === "ar" ? "تحسب عند الدفع" : "calculée au paiement"}</p>
+              <p className="mb-4 text-xs text-muted-foreground">
+                {t("shipping")} {lang === "ar" ? "تحسب عند الدفع" : "calculée au paiement"}
+              </p>
               <Button asChild size="lg" className="w-full rounded-full">
                 <Link to="/checkout">{t("checkout")}</Link>
               </Button>

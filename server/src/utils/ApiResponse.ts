@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response } from "express";
 
 interface PaginationMeta {
   page: number;
@@ -21,7 +21,7 @@ export class ApiResponse {
   /**
    * 200 OK
    */
-  static success<T>(res: Response, data: T, message = 'Success'): Response {
+  static success<T>(res: Response, data: T, message = "Success"): Response {
     const payload: ApiResponsePayload<T> = {
       success: true,
       statusCode: 200,
@@ -34,7 +34,7 @@ export class ApiResponse {
   /**
    * 201 Created
    */
-  static created<T>(res: Response, data: T, message = 'Created successfully'): Response {
+  static created<T>(res: Response, data: T, message = "Created successfully"): Response {
     const payload: ApiResponsePayload<T> = {
       success: true,
       statusCode: 201,
@@ -58,7 +58,7 @@ export class ApiResponse {
     res: Response,
     data: T[],
     meta: PaginationMeta,
-    message = 'Success'
+    message = "Success",
   ): Response {
     const payload: ApiResponsePayload<T[]> = {
       success: true,

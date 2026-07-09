@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,13 @@ function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Use useEffect to handle redirect after render, not during render
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate({ to: "/admin/dashboard" });
+    }
+  }, [isAuthenticated, navigate]);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -29,19 +36,14 @@ function AdminLoginPage() {
       toast.success("Connexion réussie !");
       navigate({ to: "/admin/dashboard" });
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Erreur de connexion"
-      );
+      toast.error(err instanceof Error ? err.message : "Erreur de connexion");
     } finally {
       setLoading(false);
     }
   };
 
-  // If already authenticated (e.g. navigated here after login),
-  // redirect. This is safe because isAuthenticated starts as false
-  // on both server and client.
+  // If already authenticated, don't render anything while redirecting
   if (isAuthenticated) {
-    navigate({ to: "/admin/dashboard" });
     return null;
   }
 
@@ -57,9 +59,7 @@ function AdminLoginPage() {
               className="h-20 w-20 rounded-full object-contain shadow-soft"
             />
           </a>
-          <h1 className="font-display text-2xl font-bold text-olive-dark">
-            Espace Administration
-          </h1>
+          <h1 className="font-display text-2xl font-bold text-olive-dark">Espace Administration</h1>
           <p className="text-sm text-muted-foreground">
             Connectez-vous pour accéder au tableau de bord
           </p>
@@ -114,11 +114,7 @@ function AdminLoginPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>

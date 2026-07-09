@@ -14,7 +14,13 @@ export function Footer() {
       <div className="container-page grid gap-10 py-14 md:grid-cols-4">
         <div className="md:col-span-1">
           <div className="flex items-center gap-2">
-            <img src={logo} alt="" className="h-13 w-13 rounded-full object-contain" width={52} height={52} />
+            <img
+              src={logo}
+              alt=""
+              className="h-13 w-13 rounded-full object-contain"
+              width={52}
+              height={52}
+            />
             <span className="font-display text-lg font-semibold">{t("brand")}</span>
           </div>
           <p className="mt-4 text-sm text-sidebar-foreground/70">{t("tagline")}</p>
@@ -25,10 +31,26 @@ export function Footer() {
             {t("footer_quick")}
           </h4>
           <ul className="mt-4 space-y-2.5 text-sm text-sidebar-foreground/75">
-            <li><Link to="/products" className="hover:text-sidebar-primary">{t("nav_products")}</Link></li>
-            <li><Link to="/about" className="hover:text-sidebar-primary">{t("nav_about")}</Link></li>
-            <li><Link to="/process" className="hover:text-sidebar-primary">{t("nav_process")}</Link></li>
-            <li><Link to="/faq" className="hover:text-sidebar-primary">{t("nav_faq")}</Link></li>
+            <li>
+              <Link to="/products" className="hover:text-sidebar-primary">
+                {t("nav_products")}
+              </Link>
+            </li>
+            <li>
+              <Link to="/about" className="hover:text-sidebar-primary">
+                {t("nav_about")}
+              </Link>
+            </li>
+            <li>
+              <Link to="/process" className="hover:text-sidebar-primary">
+                {t("nav_process")}
+              </Link>
+            </li>
+            <li>
+              <Link to="/faq" className="hover:text-sidebar-primary">
+                {t("nav_faq")}
+              </Link>
+            </li>
           </ul>
         </div>
 
@@ -59,14 +81,22 @@ export function Footer() {
           </h4>
           <div className="mt-4 flex gap-3">
             {settings?.instagram_url && (
-              <a href={settings.instagram_url} target="_blank" rel="noreferrer"
-                 className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground">
+              <a
+                href={settings.instagram_url}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              >
                 <Instagram className="h-4 w-4" />
               </a>
             )}
             {settings?.facebook_url && (
-              <a href={settings.facebook_url} target="_blank" rel="noreferrer"
-                 className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground">
+              <a
+                href={settings.facebook_url}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              >
                 <Facebook className="h-4 w-4" />
               </a>
             )}

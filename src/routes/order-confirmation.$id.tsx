@@ -20,7 +20,11 @@ function Confirmation() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md rounded-3xl border border-border bg-card p-10 text-center shadow-elegant"
         >
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", delay: 0.15 }}>
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", delay: 0.15 }}
+          >
             <CheckCircle2 className="mx-auto h-16 w-16 text-primary" />
           </motion.div>
           <h1 className="mt-5 font-display text-2xl font-bold">{t("order_confirmed")}</h1>

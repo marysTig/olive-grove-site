@@ -1,6 +1,6 @@
-import crypto from 'crypto';
+import crypto from "crypto";
 
-const PREFIX = 'OGE';
+const PREFIX = "OGE";
 
 /**
  * Generates a unique order number in the format:
@@ -17,14 +17,14 @@ export const generateOrderNumber = (): string => {
 
   const datePart = [
     now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('');
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("");
 
   const randomPart = crypto
     .randomBytes(4)
-    .toString('base64url')
-    .replace(/[^A-Za-z0-9]/g, '')
+    .toString("base64url")
+    .replace(/[^A-Za-z0-9]/g, "")
     .slice(0, 5)
     .toUpperCase();
 

@@ -1,12 +1,12 @@
-import { Request, Response } from 'express';
-import { asyncHandler } from '@/utils/asyncHandler';
-import { ApiResponse } from '@/utils/ApiResponse';
-import { ApiError } from '@/utils/ApiError';
-import User from '@/models/User.model';
+import { Request, Response } from "express";
+import { asyncHandler } from "@/utils/asyncHandler";
+import { ApiResponse } from "@/utils/ApiResponse";
+import { ApiError } from "@/utils/ApiError";
+import User from "@/models/User.model";
 
-const normalizeRole = (value: unknown): 'admin' | 'client' => {
-  if (value === 'admin' || value === 'client') return value;
-  return 'client';
+const normalizeRole = (value: unknown): "admin" | "client" => {
+  if (value === "admin" || value === "client") return value;
+  return "client";
 };
 
 /**
@@ -23,7 +23,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
 
   // Search by name or email
   if (req.query.search) {
-    const searchRegex = new RegExp(req.query.search as string, 'i');
+    const searchRegex = new RegExp(req.query.search as string, "i");
     query.$or = [{ fullName: searchRegex }, { email: searchRegex }];
   }
 
@@ -34,14 +34,11 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
 
   // Filter by status (active/inactive)
   if (req.query.isActive !== undefined) {
-    query.isActive = req.query.isActive === 'true';
+    query.isActive = req.query.isActive === "true";
   }
 
   const total = await User.countDocuments(query);
-  const users = await User.find(query)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  const users = await User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit);
 
   ApiResponse.success(
     res,
@@ -54,7 +51,7 @@ export const getUsers = asyncHandler(async (req: Request, res: Response) => {
         pages: Math.ceil(total / limit),
       },
     },
-    'Users retrieved successfully'
+    "Users retrieved successfully",
   );
 });
 
@@ -68,7 +65,7 @@ export const createUser = asyncHandler(async (req: Request, res: Response) => {
   // Check if email already registered
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    throw ApiError.conflict('Email address is already in use');
+    throw ApiError.conflict("Email address is already in use");
   }
 
   const user = await User.create({
@@ -79,7 +76,7 @@ export const createUser = asyncHandler(async (req: Request, res: Response) => {
     isActive: true,
   });
 
-  ApiResponse.created(res, { user }, 'User created successfully');
+  ApiResponse.created(res, { user }, "User created successfully");
 });
 
 /**
@@ -92,12 +89,12 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
 
   const user = await User.findById(id);
   if (!user) {
-    throw ApiError.notFound('User not found');
+    throw ApiError.notFound("User not found");
   }
 
   // Prevent admin from deactivating themselves
   if (isActive === false && req.user?.id === id) {
-    throw ApiError.badRequest('You cannot deactivate your own account');
+    throw ApiError.badRequest("You cannot deactivate your own account");
   }
 
   if (fullName !== undefined) user.fullName = fullName;
@@ -105,7 +102,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
     if (email !== user.email) {
       const emailExists = await User.findOne({ email });
       if (emailExists) {
-        throw ApiError.conflict('Email address is already in use');
+        throw ApiError.conflict("Email address is already in use");
       }
     }
     user.email = email;
@@ -113,7 +110,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
   if (role !== undefined) {
     // Prevent admin from changing their own role
     if (role !== user.role && req.user?.id === id) {
-      throw ApiError.badRequest('You cannot change your own role');
+      throw ApiError.badRequest("You cannot change your own role");
     }
     user.role = normalizeRole(role);
   }
@@ -121,7 +118,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response) => {
 
   await user.save();
 
-  ApiResponse.success(res, { user }, 'User updated successfully');
+  ApiResponse.success(res, { user }, "User updated successfully");
 });
 
 /**
@@ -134,13 +131,13 @@ export const resetPassword = asyncHandler(async (req: Request, res: Response) =>
 
   const user = await User.findById(id);
   if (!user) {
-    throw ApiError.notFound('User not found');
+    throw ApiError.notFound("User not found");
   }
 
   user.passwordHash = password; // Trigger mongoose pre-save hook to hash
   await user.save();
 
-  ApiResponse.success(res, null, 'User password reset successfully');
+  ApiResponse.success(res, null, "User password reset successfully");
 });
 
 /**
@@ -151,13 +148,13 @@ export const deleteUser = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
   if (req.user?.id === id) {
-    throw ApiError.badRequest('You cannot delete your own administrative account');
+    throw ApiError.badRequest("You cannot delete your own administrative account");
   }
 
   const user = await User.findByIdAndDelete(id);
   if (!user) {
-    throw ApiError.notFound('User not found');
+    throw ApiError.notFound("User not found");
   }
 
-  ApiResponse.success(res, null, 'User deleted successfully');
+  ApiResponse.success(res, null, "User deleted successfully");
 });

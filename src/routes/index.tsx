@@ -3,19 +3,41 @@ import { useQuery } from "@tanstack/react-query";
 import { motion, useScroll, useTransform } from "motion/react";
 import { useRef, useState } from "react";
 import {
-  Leaf, Hand, Snowflake, Package, HeartPulse, BadgeCheck,
-  ShieldCheck, Truck, Sprout, CreditCard, Star, ArrowRight,
+  Leaf,
+  Hand,
+  Snowflake,
+  Package,
+  HeartPulse,
+  BadgeCheck,
+  ShieldCheck,
+  Truck,
+  Sprout,
+  CreditCard,
+  Star,
+  ArrowRight,
 } from "lucide-react";
+import type { GalleryItem } from "@/lib/types";
 import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { StoreLayout } from "@/components/layout/StoreLayout";
 import { ProductCard } from "@/components/ProductCard";
 import { useI18n } from "@/i18n";
+import { galleryQuery } from "@/lib/queries";
 import { productsQuery } from "@/lib/queries";
-import { heroGrove, galleryHarvest, galleryPressing, galleryLifestyle, aboutFamily } from "@/lib/images";
+import {
+  heroGrove,
+  galleryHarvest,
+  galleryPressing,
+  galleryLifestyle,
+  aboutFamily,
+} from "@/lib/images";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -23,12 +45,48 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { t, lang } = useI18n();
-  const { data: products = [] } = useQuery(productsQuery());
-  const featured = products.filter((p) => p.featured).slice(0, 4);
+  const { data: products = [], isLoading, isError, error } = useQuery(productsQuery());
+  const { data: gallery = [] } = useQuery(galleryQuery());
+
+  const defaultGallery: GalleryItem[] = [
+    {
+      id: "static-1",
+      title: "Harvest",
+      description: "",
+      imageUrl: galleryHarvest,
+      imagePublicId: "static-1",
+      order: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: "static-2",
+      title: "Pressing",
+      description: "",
+      imageUrl: galleryPressing,
+      imagePublicId: "static-2",
+      order: 2,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: "static-3",
+      title: "Lifestyle",
+      description: "",
+      imageUrl: galleryLifestyle,
+      imagePublicId: "static-3",
+      order: 3,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+
+  const displayGallery = gallery.length > 0 ? gallery : defaultGallery;
+
+  const featured = products.filter((p) => p && p.active !== false);
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const y = useTransform(scrollYProgress, [0, 1], [0, 160]);
-  const [email, setEmail] = useState("");
 
   const trust = [
     { icon: Leaf, label: t("trust_natural") },
@@ -49,37 +107,65 @@ function Index() {
   ];
 
   const process = [
-    t("process_1"), t("process_2"), t("process_3"),
-    t("process_4"), t("process_5"), t("process_6"),
+    t("process_1"),
+    t("process_2"),
+    t("process_3"),
+    t("process_4"),
+    t("process_5"),
+    t("process_6"),
   ];
 
-  const testimonials = lang === "ar"
-    ? [
-        { name: "أمينة ب.", text: "أفضل زيت زيتون تذوقته. طعم أصيل يذكرني ببيت جدي." },
-        { name: "كريم د.", text: "جودة استثنائية وتوصيل سريع. أنصح به بشدة." },
-        { name: "سارة م.", text: "التغليف أنيق جدًا والزيت لذيذ. سأطلب مجددًا." },
-      ]
-    : [
-        { name: "Amina B.", text: "La meilleure huile d'olive que j'ai goûtée. Un goût authentique." },
-        { name: "Karim D.", text: "Qualité exceptionnelle et livraison rapide. Je recommande vivement." },
-        { name: "Sarah M.", text: "L'emballage est élégant et l'huile délicieuse. Je recommanderai." },
-      ];
+  const testimonials =
+    lang === "ar"
+      ? [
+          { name: "أمينة ب.", text: "أفضل زيت زيتون تذوقته. طعم أصيل يذكرني ببيت جدي." },
+          { name: "كريم د.", text: "جودة استثنائية وتوصيل سريع. أنصح به بشدة." },
+          { name: "سارة م.", text: "التغليف أنيق جدًا والزيت لذيذ. سأطلب مجددًا." },
+        ]
+      : [
+          {
+            name: "Amina B.",
+            text: "La meilleure huile d'olive que j'ai goûtée. Un goût authentique.",
+          },
+          {
+            name: "Karim D.",
+            text: "Qualité exceptionnelle et livraison rapide. Je recommande vivement.",
+          },
+          {
+            name: "Sarah M.",
+            text: "L'emballage est élégant et l'huile délicieuse. Je recommanderai.",
+          },
+        ];
 
-  const faqs = lang === "ar"
-    ? [
-        { q: "هل الزيت طبيعي 100٪؟", a: "نعم، زيتنا بكر ممتاز، معصور على البارد وبدون أي إضافات." },
-        { q: "كم تستغرق مدة التوصيل؟", a: "عادة من 2 إلى 5 أيام عمل عبر كامل التراب الوطني." },
-        { q: "ما هي طرق الدفع؟", a: "الدفع عند الاستلام متاح حاليًا في جميع أنحاء الجزائر." },
-        { q: "كيف أحفظ الزيت؟", a: "في مكان بارد وبعيد عن الضوء للحفاظ على جودته." },
-      ]
-    : [
-        { q: "L'huile est-elle 100% naturelle ?", a: "Oui, notre huile est extra vierge, extraite à froid et sans aucun additif." },
-        { q: "Quel est le délai de livraison ?", a: "Généralement de 2 à 5 jours ouvrables sur tout le territoire national." },
-        { q: "Quels moyens de paiement acceptez-vous ?", a: "Le paiement à la livraison est disponible partout en Algérie." },
-        { q: "Comment conserver l'huile ?", a: "Dans un endroit frais et à l'abri de la lumière pour préserver sa qualité." },
-      ];
-
-  const gallery = [galleryHarvest, galleryPressing, galleryLifestyle, aboutFamily];
+  const faqs =
+    lang === "ar"
+      ? [
+          {
+            q: "هل الزيت طبيعي 100٪؟",
+            a: "نعم، زيتنا بكر ممتاز، معصور على البارد وبدون أي إضافات.",
+          },
+          { q: "كم تستغرق مدة التوصيل؟", a: "عادة من 2 إلى 5 أيام عمل عبر كامل التراب الوطني." },
+          { q: "ما هي طرق الدفع؟", a: "الدفع عند الاستلام متاح حاليًا في جميع أنحاء الجزائر." },
+          { q: "كيف أحفظ الزيت؟", a: "في مكان بارد وبعيد عن الضوء للحفاظ على جودته." },
+        ]
+      : [
+          {
+            q: "L'huile est-elle 100% naturelle ?",
+            a: "Oui, notre huile est extra vierge, extraite à froid et sans aucun additif.",
+          },
+          {
+            q: "Quel est le délai de livraison ?",
+            a: "Généralement de 2 à 5 jours ouvrables sur tout le territoire national.",
+          },
+          {
+            q: "Quels moyens de paiement acceptez-vous ?",
+            a: "Le paiement à la livraison est disponible partout en Algérie.",
+          },
+          {
+            q: "Comment conserver l'huile ?",
+            a: "Dans un endroit frais et à l'abri de la lumière pour préserver sa qualité.",
+          },
+        ];
 
   return (
     <StoreLayout>
@@ -125,10 +211,21 @@ function Index() {
             transition={{ duration: 0.6, delay: 0.4 }}
             className="mt-9 flex flex-wrap items-center justify-center gap-3"
           >
-            <Button asChild size="lg" className="rounded-full bg-accent px-8 text-accent-foreground hover:bg-accent/90">
-              <Link to="/products">{t("hero_shop")} <ArrowRight className="h-4 w-4" /></Link>
+            <Button
+              asChild
+              size="lg"
+              className="rounded-full bg-accent px-8 text-accent-foreground hover:bg-accent/90"
+            >
+              <Link to="/products">
+                {t("hero_shop")} <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="rounded-full border-white/40 bg-white/10 px-8 text-white backdrop-blur hover:bg-white/20">
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="rounded-full border-white/40 bg-white/10 px-8 text-white backdrop-blur hover:bg-white/20"
+            >
               <Link to="/process">{t("hero_learn")}</Link>
             </Button>
           </motion.div>
@@ -150,12 +247,35 @@ function Index() {
       {/* FEATURED */}
       <section className="container-page py-20">
         <SectionHeading title={t("featured_title")} subtitle={t("featured_sub")} />
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-          {featured.map((p, i) => <ProductCard key={p.id} product={p} index={i} />)}
-        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[3/4] rounded-3xl" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="py-10 text-center text-muted-foreground space-y-2">
+            <p className="text-sm">
+              {lang === "ar"
+                ? "عذرًا، تعذر تحميل المنتجات المميزة."
+                : "Impossible de charger les produits phares."}
+            </p>
+            <p className="text-xs text-destructive">{error?.message}</p>
+          </div>
+        ) : featured.length === 0 ? (
+          <p className="py-10 text-center text-muted-foreground">{t("no_products")}</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
+            {featured.map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
+          </div>
+        )}
         <div className="mt-10 text-center">
           <Button asChild variant="outline" size="lg" className="rounded-full px-8">
-            <Link to="/products">{t("nav_products")} <ArrowRight className="h-4 w-4" /></Link>
+            <Link to="/products">
+              {t("nav_products")} <ArrowRight className="h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </section>
@@ -215,7 +335,9 @@ function Index() {
       {/* TESTIMONIALS */}
       <section className="bg-olive-dark py-20 text-white">
         <div className="container-page">
-          <h2 className="mb-12 text-center font-display text-3xl font-bold sm:text-4xl">{t("testi_title")}</h2>
+          <h2 className="mb-12 text-center font-display text-3xl font-bold sm:text-4xl">
+            {t("testi_title")}
+          </h2>
           <div className="grid gap-6 md:grid-cols-3">
             {testimonials.map((tst, i) => (
               <motion.div
@@ -243,9 +365,9 @@ function Index() {
       <section className="container-page py-20">
         <SectionHeading title={t("gallery_title")} subtitle="" />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {gallery.map((src, i) => (
+          {displayGallery.map((item: GalleryItem, i: number) => (
             <motion.div
-              key={i}
+              key={item.id}
               initial={{ opacity: 0, scale: 0.95 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
@@ -253,8 +375,8 @@ function Index() {
               className={`overflow-hidden rounded-2xl ${i === 0 ? "col-span-2 row-span-2" : ""}`}
             >
               <img
-                src={src}
-                alt=""
+                src={item.imageUrl}
+                alt={item.title}
                 loading="lazy"
                 className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
               />
@@ -266,39 +388,23 @@ function Index() {
       {/* FAQ */}
       <section className="bg-cream py-20">
         <div className="container-page max-w-3xl">
-          <h2 className="mb-10 text-center font-display text-3xl font-bold sm:text-4xl">{t("faq_title")}</h2>
+          <h2 className="mb-10 text-center font-display text-3xl font-bold sm:text-4xl">
+            {t("faq_title")}
+          </h2>
           <Accordion type="single" collapsible className="space-y-3">
             {faqs.map((f, i) => (
-              <AccordionItem key={i} value={`item-${i}`} className="rounded-2xl border border-border/60 bg-card px-5">
-                <AccordionTrigger className="text-start font-medium hover:no-underline">{f.q}</AccordionTrigger>
+              <AccordionItem
+                key={i}
+                value={`item-${i}`}
+                className="rounded-2xl border border-border/60 bg-card px-5"
+              >
+                <AccordionTrigger className="text-start font-medium hover:no-underline">
+                  {f.q}
+                </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">{f.a}</AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
-        </div>
-      </section>
-
-      {/* NEWSLETTER */}
-      <section className="container-page py-20">
-        <div className="mx-auto max-w-2xl rounded-[2rem] bg-gradient-to-br from-primary to-olive-dark p-10 text-center text-primary-foreground shadow-elegant sm:p-14">
-          <h2 className="font-display text-3xl font-bold">{t("news_title")}</h2>
-          <p className="mx-auto mt-3 max-w-md text-primary-foreground/80">{t("news_sub")}</p>
-          <form
-            onSubmit={(e) => { e.preventDefault(); if (email) { toast.success(t("news_ok")); setEmail(""); } }}
-            className="mx-auto mt-7 flex max-w-md flex-col gap-3 sm:flex-row"
-          >
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t("news_placeholder")}
-              className="flex-1 rounded-full border-0 bg-white/95 px-5 py-3 text-sm text-foreground outline-none ring-accent focus:ring-2"
-            />
-            <Button type="submit" className="rounded-full bg-accent px-7 text-accent-foreground hover:bg-accent/90">
-              {t("news_btn")}
-            </Button>
-          </form>
         </div>
       </section>
     </StoreLayout>

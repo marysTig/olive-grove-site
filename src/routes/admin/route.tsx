@@ -1,10 +1,4 @@
-import {
-  createFileRoute,
-  Outlet,
-  Link,
-  useNavigate,
-  useLocation,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useNavigate, useLocation } from "@tanstack/react-router";
 import { useAdminAuth, type Permission } from "@/lib/admin-auth";
 import {
   LayoutDashboard,
@@ -17,6 +11,9 @@ import {
   Menu,
   X,
   Shield,
+  BarChart3,
+  Star,
+  Image,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -55,6 +52,18 @@ const NAV_ITEMS: NavItem[] = [
     permission: "manage_orders",
   },
   {
+    label: "Avis",
+    to: "/admin/reviews",
+    icon: Star,
+    permission: "manage_reviews",
+  },
+  {
+    label: "Galerie",
+    to: "/admin/gallery",
+    icon: Image,
+    permission: "manage_settings",
+  },
+  {
     label: "Employés",
     to: "/admin/employees",
     icon: Users,
@@ -69,14 +78,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 function AdminLayout() {
-  const {
-    user,
-    loading,
-    isAuthenticated,
-    logout,
-    hasPermission,
-    restoreSession,
-  } = useAdminAuth();
+  const { user, loading, isAuthenticated, logout, hasPermission, restoreSession } = useAdminAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -101,9 +103,7 @@ function AdminLayout() {
       <div className="flex min-h-screen items-center justify-center bg-cream">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">
-            Vérification de l'authentification...
-          </p>
+          <p className="text-sm text-muted-foreground">Vérification de l'authentification...</p>
         </div>
       </div>
     );
@@ -121,9 +121,7 @@ function AdminLayout() {
   }
 
   // Filter nav items based on user role
-  const filteredNavItems = NAV_ITEMS.filter((item) =>
-    hasPermission(item.permission)
-  );
+  const filteredNavItems = NAV_ITEMS.filter((item) => hasPermission(item.permission));
 
   const handleLogout = async () => {
     await logout();
@@ -151,16 +149,10 @@ function AdminLayout() {
         >
           {/* Logo & brand */}
           <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-5">
-            <img
-              src={logo}
-              alt=""
-              className="h-10 w-10 rounded-full object-contain"
-            />
+            <img src={logo} alt="" className="h-10 w-10 rounded-full object-contain" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">Lem3ansra n Jeddi</p>
-              <p className="truncate text-xs text-sidebar-accent-foreground/60">
-                Administration
-              </p>
+              <p className="truncate text-xs text-sidebar-accent-foreground/60">Administration</p>
             </div>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -197,9 +189,7 @@ function AdminLayout() {
                 <Shield className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {user?.fullName}
-                </p>
+                <p className="truncate text-sm font-medium">{user?.fullName}</p>
                 <p className="truncate text-xs text-sidebar-foreground/50">
                   {user?.role === "admin" ? "Administrateur" : "Employé"}
                 </p>
@@ -238,17 +228,13 @@ function AdminLayout() {
             <button onClick={() => setSidebarOpen(true)} aria-label="Ouvrir le menu">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-display text-lg font-semibold text-olive-dark">
-              Administration
-            </h1>
+            <h1 className="font-display text-lg font-semibold text-olive-dark">Administration</h1>
           </header>
 
           {/* Admin quick actions */}
           <div className="border-b border-border bg-card px-4 py-4 lg:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Accédez rapidement au site public.
-              </p>
+              <p className="text-sm text-muted-foreground">Accédez rapidement au site public.</p>
               <Button variant="secondary" size="sm" asChild>
                 <Link to="/">Retour au site</Link>
               </Button>

@@ -12,7 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useCart } from "@/lib/cart";
 import { useI18n } from "@/i18n";
@@ -26,11 +30,12 @@ export const Route = createFileRoute("/checkout")({
 });
 
 const WILAYAS = [
-  "Adrar","Chlef","Laghouat","Oum El Bouaghi","Batna","Béjaïa","Biskra","Béchar","Blida","Bouira",
-  "Tamanrasset","Tébessa","Tlemcen","Tiaret","Tizi Ouzou","Alger","Djelfa","Jijel","Sétif","Saïda",
-  "Skikda","Sidi Bel Abbès","Annaba","Guelma","Constantine","Médéa","Mostaganem","M'Sila","Mascara","Ouargla",
-  "Oran","El Bayadh","Illizi","Bordj Bou Arréridj","Boumerdès","El Tarf","Tindouf","Tissemsilt","El Oued","Khenchela",
-  "Souk Ahras","Tipaza","Mila","Aïn Defla","Naâma","Aïn Témouchent","Ghardaïa","Relizane",
+  "Adrar", "Chlef", "Laghouat", "Oum El Bouaghi", "Batna", "Béjaïa", "Biskra", "Béchar", "Blida", "Bouira",
+  "Tamanrasset", "Tébessa", "Tlemcen", "Tiaret", "Tizi Ouzou", "Alger", "Djelfa", "Jijel", "Sétif", "Saïda",
+  "Skikda", "Sidi Bel Abbès", "Annaba", "Guelma", "Constantine", "Médéa", "Mostaganem", "M'Sila", "Mascara", "Ouargla",
+  "Oran", "El Bayadh", "Illizi", "Bordj Bou Arréridj", "Boumerdès", "El Tarf", "Tindouf", "Tissemsilt", "El Oued", "Khenchela",
+  "Souk Ahras", "Tipaza", "Mila", "Aïn Defla", "Naâma", "Aïn Témouchent", "Ghardaïa", "Relizane",
+  "Timimoun", "Bordj Badji Mokhtar", "Ouled Djellal", "Béni Abbès", "In Salah", "In Guezzam", "Touggourt", "Djanet", "El M'Ghair", "El Meniaa"
 ];
 
 const schema = z.object({
@@ -53,12 +58,19 @@ function CheckoutPage() {
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormValues>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
 
   const shippingFee = settings
-    ? (settings.free_shipping_threshold > 0 && subtotal >= settings.free_shipping_threshold ? 0 : settings.shipping_fee)
+    ? settings.free_shipping_threshold > 0 && subtotal >= settings.free_shipping_threshold
+      ? 0
+      : settings.shipping_fee
     : 0;
   const discount = discountPct > 0 ? subtotal * (discountPct / 100) : 0;
   const total = subtotal - discount + shippingFee;
@@ -97,7 +109,9 @@ function CheckoutPage() {
       navigate({ to: "/order-confirmation/$id", params: { id: String(order.order_number) } });
     } catch (e) {
       console.error(e);
-      toast.error(lang === "ar" ? "حدث خطأ. حاول مرة أخرى." : "Une erreur est survenue. Réessayez.");
+      toast.error(
+        lang === "ar" ? "حدث خطأ. حاول مرة أخرى." : "Une erreur est survenue. Réessayez.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +139,10 @@ function CheckoutPage() {
                 <Field label={t("full_name")} error={errors.customer_name?.message}>
                   <Input {...register("customer_name")} className="rounded-xl" />
                 </Field>
-                <Field label={lang === "ar" ? "البريد الإلكتروني" : "Email"} error={errors.customer_email?.message}>
+                <Field
+                  label={lang === "ar" ? "البريد الإلكتروني" : "Email"}
+                  error={errors.customer_email?.message}
+                >
                   <Input {...register("customer_email")} type="email" className="rounded-xl" />
                 </Field>
                 <Field label={t("phone")} error={errors.phone?.message}>
@@ -133,9 +150,15 @@ function CheckoutPage() {
                 </Field>
                 <Field label={t("wilaya")} error={errors.wilaya?.message}>
                   <Select onValueChange={(v) => setValue("wilaya", v, { shouldValidate: true })}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="—" /></SelectTrigger>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
                     <SelectContent className="max-h-72">
-                      {WILAYAS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                      {WILAYAS.map((w) => (
+                        <SelectItem key={w} value={w}>
+                          {w}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -163,8 +186,14 @@ function CheckoutPage() {
             <div className="max-h-52 space-y-3 overflow-y-auto">
               {items.map((i) => (
                 <div key={i.id} className="flex items-center gap-3 text-sm">
-                  <img src={resolveImage(i.image_url)} alt="" className="h-12 w-12 rounded-lg object-cover" />
-                  <span className="flex-1 line-clamp-1">{productName(i, lang)} × {i.quantity}</span>
+                  <img
+                    src={resolveImage(i.image_url)}
+                    alt=""
+                    className="h-12 w-12 rounded-lg object-cover"
+                  />
+                  <span className="flex-1 line-clamp-1">
+                    {productName(i, lang)} × {i.quantity}
+                  </span>
                   <span className="font-medium">{formatPrice(i.price * i.quantity, lang)}</span>
                 </div>
               ))}
@@ -173,22 +202,49 @@ function CheckoutPage() {
             <div className="mt-4 flex gap-2">
               <div className="relative flex-1">
                 <Tag className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder={t("coupon_placeholder")} className="ps-9 rounded-xl" />
+                <Input
+                  value={coupon}
+                  onChange={(e) => setCoupon(e.target.value)}
+                  placeholder={t("coupon_placeholder")}
+                  className="ps-9 rounded-xl"
+                />
               </div>
-              <Button type="button" variant="outline" className="rounded-xl" onClick={applyCoupon}>{t("coupon_apply")}</Button>
+              <Button type="button" variant="outline" className="rounded-xl" onClick={applyCoupon}>
+                {t("coupon_apply")}
+              </Button>
             </div>
 
             <div className="mt-5 space-y-2 border-t border-border pt-4 text-sm">
               <Row label={t("subtotal")} value={formatPrice(subtotal, lang)} />
-              {discount > 0 && <Row label={`${t("discount")} (${appliedCode})`} value={`- ${formatPrice(discount, lang)}`} accent />}
-              <Row label={t("shipping")} value={shippingFee === 0 ? (lang === "ar" ? "مجاني" : "Gratuit") : formatPrice(shippingFee, lang)} />
+              {discount > 0 && (
+                <Row
+                  label={`${t("discount")} (${appliedCode})`}
+                  value={`- ${formatPrice(discount, lang)}`}
+                  accent
+                />
+              )}
+              <Row
+                label={t("shipping")}
+                value={
+                  shippingFee === 0
+                    ? lang === "ar"
+                      ? "مجاني"
+                      : "Gratuit"
+                    : formatPrice(shippingFee, lang)
+                }
+              />
               <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-bold">
                 <span>{t("total")}</span>
                 <span className="text-primary">{formatPrice(total, lang)}</span>
               </div>
             </div>
 
-            <Button type="submit" size="lg" disabled={submitting} className="mt-5 w-full rounded-full">
+            <Button
+              type="submit"
+              size="lg"
+              disabled={submitting}
+              className="mt-5 w-full rounded-full"
+            >
               {submitting ? t("loading") : t("place_order")}
             </Button>
           </div>
@@ -198,7 +254,15 @@ function CheckoutPage() {
   );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <Label className="mb-1.5 block text-sm">{label}</Label>

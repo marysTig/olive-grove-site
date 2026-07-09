@@ -1,11 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { getApiBaseUrl } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -30,7 +23,10 @@ export type Permission =
   | "manage_orders"
   | "manage_users"
   | "manage_settings"
-  | "view_analytics";
+  | "view_analytics"
+  | "view_product_analytics"
+  | "manage_employees"
+  | "manage_reviews";
 
 /** Role → Permission mapping */
 const ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
@@ -41,6 +37,9 @@ const ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     "manage_users",
     "manage_settings",
     "view_analytics",
+    "view_product_analytics",
+    "manage_employees",
+    "manage_reviews",
   ],
   client: [],
 };
@@ -131,7 +130,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       if (!user) return false;
       return ROLE_PERMISSIONS[user.role]?.includes(permission) ?? false;
     },
-    [user]
+    [user],
   );
 
   return (
@@ -155,7 +154,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
 export function useAdminAuth() {
   const ctx = useContext(AdminAuthContext);
-  if (!ctx)
-    throw new Error("useAdminAuth must be used within AdminAuthProvider");
+  if (!ctx) throw new Error("useAdminAuth must be used within AdminAuthProvider");
   return ctx;
 }
