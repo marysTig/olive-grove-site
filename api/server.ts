@@ -8,9 +8,20 @@
  * No controller or service code needs to change — Express handles everything.
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import app from "../server/src/app";
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  // @ts-ignore — VercelRequest/VercelResponse are compatible with Express req/res
-  return app(req, res);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    const { default: app } = await import("../server/src/app");
+    // @ts-ignore
+    return app(req, res);
+  } catch (error: any) {
+    console.error("Vercel Serverless Boot Error:", error);
+    return res.status(500).json({
+      success: false,
+      statusCode: 500,
+      message: "Server failed to start",
+      error: error?.message || String(error),
+      stack: error?.stack
+    });
+  }
 }
