@@ -1,8 +1,8 @@
-import User from "@/models/User.model";
-import Product from "@/models/Product.model";
-import ContactSettings from "@/models/ContactSettings.model";
-import Gallery from "@/models/Gallery.model";
-import { logger } from "@/utils/logger";
+import User from "@server/models/User.model";
+import Product from "@server/models/Product.model";
+import ContactSettings from "@server/models/ContactSettings.model";
+import Gallery from "@server/models/Gallery.model";
+import { logger } from "@server/utils/logger";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@lem3ansra.dz";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@123456";

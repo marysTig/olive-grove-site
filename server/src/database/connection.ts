@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
-import { env } from "@/config/env.config";
-import { logger } from "@/utils/logger";
+import { env } from "@server/config/env.config";
+import { logger } from "@server/utils/logger";
 
 export const connectDatabase = async (): Promise<void> => {
   const mongoUri = process.env.MONGODB_URI || env.MONGODB_URI;

@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { ApiResponse } from "@/utils/ApiResponse";
-import { ApiError } from "@/utils/ApiError";
-import User from "@/models/User.model";
+import { asyncHandler } from "@server/utils/asyncHandler";
+import { ApiResponse } from "@server/utils/ApiResponse";
+import { ApiError } from "@server/utils/ApiError";
+import User from "@server/models/User.model";
 
 const normalizeRole = (value: unknown): "admin" | "client" => {
   if (value === "admin" || value === "client") return value;

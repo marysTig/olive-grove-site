@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { env } from "@/config/env.config";
-import { ApiError } from "@/utils/ApiError";
-import { logger } from "@/utils/logger";
+import { env } from "@server/config/env.config";
+import { ApiError } from "@server/utils/ApiError";
+import { logger } from "@server/utils/logger";
 import mongoose from "mongoose";
 
 interface ErrorResponse {

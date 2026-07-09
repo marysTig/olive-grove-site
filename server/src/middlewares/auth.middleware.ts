@@ -1,9 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { env } from "@/config/env.config";
-import { ApiError } from "@/utils/ApiError";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { AuthService } from "@/services/auth.service";
+import { env } from "@server/config/env.config";
+import { ApiError } from "@server/utils/ApiError";
+import { asyncHandler } from "@server/utils/asyncHandler";
+import { AuthService } from "@server/services/auth.service";
 
 // Extend Express Request to include user payload
 declare global {

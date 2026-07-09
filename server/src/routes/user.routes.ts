@@ -5,15 +5,15 @@ import {
   updateUser,
   resetPassword,
   deleteUser,
-} from "@/controllers/user.controller";
-import { protect } from "@/middlewares/auth.middleware";
-import { restrictTo } from "@/middlewares/admin.middleware";
-import { validate } from "@/middlewares/validate.middleware";
+} from "@server/controllers/user.controller";
+import { protect } from "@server/middlewares/auth.middleware";
+import { restrictTo } from "@server/middlewares/admin.middleware";
+import { validate } from "@server/middlewares/validate.middleware";
 import {
   createUserSchema,
   updateUserSchema,
   resetPasswordSchema,
-} from "@/validators/user.validator";
+} from "@server/validators/user.validator";
 
 const router = Router();
 

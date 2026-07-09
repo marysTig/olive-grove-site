@@ -9,10 +9,10 @@
  *   ADMIN_PASSWORD — admin password (default: Admin@123456)
  *   ADMIN_NAME     — admin full name (default: Administrateur)
  */
-import { env } from "@/config/env.config";
-import { connectDatabase, disconnectDatabase } from "@/database/connection";
-import User from "@/models/User.model";
-import { logger } from "@/utils/logger";
+import { env } from "@server/config/env.config";
+import { connectDatabase, disconnectDatabase } from "@server/database/connection";
+import User from "@server/models/User.model";
+import { logger } from "@server/utils/logger";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@lem3ansra.dz";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "Admin@123456";

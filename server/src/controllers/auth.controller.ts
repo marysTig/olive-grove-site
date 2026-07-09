@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { ApiResponse } from "@/utils/ApiResponse";
-import { AuthService } from "@/services/auth.service";
-import { ApiError } from "@/utils/ApiError";
+import { asyncHandler } from "@server/utils/asyncHandler";
+import { ApiResponse } from "@server/utils/ApiResponse";
+import { AuthService } from "@server/services/auth.service";
+import { ApiError } from "@server/utils/ApiError";
 
 /**
  * POST /api/v1/auth/login

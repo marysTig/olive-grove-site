@@ -4,10 +4,10 @@
  * Creates 10 realistic olive oil products.
  * Run with: npx ts-node -r tsconfig-paths/register src/database/seed-products.ts
  */
-import { env } from "@/config/env.config";
-import { connectDatabase, disconnectDatabase } from "@/database/connection";
-import Product from "@/models/Product.model";
-import { logger } from "@/utils/logger";
+import { env } from "@server/config/env.config";
+import { connectDatabase, disconnectDatabase } from "@server/database/connection";
+import Product from "@server/models/Product.model";
+import { logger } from "@server/utils/logger";
 
 async function seedProducts(): Promise<void> {
   try {

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ApiError } from "@/utils/ApiError";
+import { ApiError } from "@server/utils/ApiError";
 
 /**
  * Role-based access control middleware factory.

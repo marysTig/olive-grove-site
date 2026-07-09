@@ -2,12 +2,12 @@ import { Request, Response } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import { v2 as cloudinary } from "cloudinary";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { ApiError } from "@/utils/ApiError";
-import { ApiResponse } from "@/utils/ApiResponse";
-import Product from "@/models/Product.model";
-import { normalizeProductPayload } from "@/utils/productUtils";
-import { env } from "@/config/env.config";
+import { asyncHandler } from "@server/utils/asyncHandler";
+import { ApiError } from "@server/utils/ApiError";
+import { ApiResponse } from "@server/utils/ApiResponse";
+import Product from "@server/models/Product.model";
+import { normalizeProductPayload } from "@server/utils/productUtils";
+import { env } from "@server/config/env.config";
 
 cloudinary.config({
   cloud_name: env.CLOUDINARY_CLOUD_NAME,

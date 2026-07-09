@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { login, logout, getMe, adminLogin } from "@/controllers/auth.controller";
-import { protect } from "@/middlewares/auth.middleware";
-import { validate } from "@/middlewares/validate.middleware";
-import { loginSchema } from "@/validators/auth.validator";
-import { loginLimiter } from "@/config/loginLimiter.config";
+import { login, logout, getMe, adminLogin } from "@server/controllers/auth.controller";
+import { protect } from "@server/middlewares/auth.middleware";
+import { validate } from "@server/middlewares/validate.middleware";
+import { loginSchema } from "@server/validators/auth.validator";
+import { loginLimiter } from "@server/config/loginLimiter.config";
 
 const router = Router();
 

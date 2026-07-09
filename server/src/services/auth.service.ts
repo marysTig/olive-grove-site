@@ -1,9 +1,9 @@
 import { Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { supabase } from "@/database/supabase";
-import { env } from "@/config/env.config";
-import { ApiError } from "@/utils/ApiError";
+import { supabase } from "@server/database/supabase";
+import { env } from "@server/config/env.config";
+import { ApiError } from "@server/utils/ApiError";
 
 export interface IUser {
   id: string;

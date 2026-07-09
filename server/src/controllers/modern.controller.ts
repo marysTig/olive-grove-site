@@ -2,13 +2,13 @@ import { Request, Response } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import { v2 as cloudinary } from "cloudinary";
-import { asyncHandler } from "@/utils/asyncHandler";
-import { ApiError } from "@/utils/ApiError";
-import { ApiResponse } from "@/utils/ApiResponse";
-import { generateOrderNumber } from "@/utils/orderNumberGenerator";
-import { env } from "@/config/env.config";
-import { AuthService } from "@/services/auth.service";
-import { supabase } from "@/database/supabase";
+import { asyncHandler } from "@server/utils/asyncHandler";
+import { ApiError } from "@server/utils/ApiError";
+import { ApiResponse } from "@server/utils/ApiResponse";
+import { generateOrderNumber } from "@server/utils/orderNumberGenerator";
+import { env } from "@server/config/env.config";
+import { AuthService } from "@server/services/auth.service";
+import { supabase } from "@server/database/supabase";
 
 type AuthenticatedRequest = Request & {
   user?: {

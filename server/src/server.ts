@@ -1,6 +1,6 @@
 import "tsconfig-paths/register";
 
-import app from "@/app";
+import app from "@server/app";
 
 const port = Number(process.env.PORT || 5000);
 

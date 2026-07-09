@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import User from "@/models/User.model";
-import Product from "@/models/Product.model";
+import User from "@server/models/User.model";
+import Product from "@server/models/Product.model";
 
 export async function ensureSeedData() {
   const adminCount = await User.countDocuments({ role: "admin" });

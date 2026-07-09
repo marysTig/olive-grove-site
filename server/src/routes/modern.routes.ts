@@ -43,9 +43,9 @@ import {
   updateGalleryItem,
   deleteGalleryItem,
   reorderGallery,
-} from "@/controllers/modern.controller";
-import { protect } from "@/middlewares/auth.middleware";
-import { restrictTo } from "@/middlewares/admin.middleware";
+} from "@server/controllers/modern.controller";
+import { protect } from "@server/middlewares/auth.middleware";
+import { restrictTo } from "@server/middlewares/admin.middleware";
 
 const router = Router();
 

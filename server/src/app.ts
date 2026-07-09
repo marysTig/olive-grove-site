@@ -5,8 +5,8 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import path from "path";
 
-import modernRoutes from "@/routes/modern.routes";
-import { ApiError } from "@/utils/ApiError";
+import modernRoutes from "@server/routes/modern.routes";
+import { ApiError } from "@server/utils/ApiError";
 
 const app: Application = express();
 // Database connection is handled gracefully by the Supabase JS client.

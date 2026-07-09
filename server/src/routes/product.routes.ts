@@ -6,9 +6,9 @@ import {
   getProducts,
   updateProduct,
   uploadProductImage,
-} from "@/controllers/product.controller";
-import { protect } from "@/middlewares/auth.middleware";
-import { restrictTo } from "@/middlewares/admin.middleware";
+} from "@server/controllers/product.controller";
+import { protect } from "@server/middlewares/auth.middleware";
+import { restrictTo } from "@server/middlewares/admin.middleware";
 
 const router = Router();
 

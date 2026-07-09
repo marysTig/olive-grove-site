@@ -11,7 +11,7 @@
     "rootDir": "../",
     "baseUrl": "../",
     "paths": {
-      "@/*": ["server/src/*"]
+      "@server/*": ["server/src/*"]
     }
   },
   "include": ["./**/*.ts", "../server/src/**/*.ts"],
