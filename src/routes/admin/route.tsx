@@ -84,8 +84,15 @@ function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
 
-  // Restore session only when admin routes are visited (client-side only)
+  const isLoginPage = location.pathname === "/admin/login";
+
+  // Restore session only for protected admin routes (skip on login page)
   useEffect(() => {
+    if (isLoginPage) {
+      setSessionChecked(true);
+      return;
+    }
+
     let cancelled = false;
     const check = async () => {
       await restoreSession();
@@ -95,7 +102,12 @@ function AdminLayout() {
     return () => {
       cancelled = true;
     };
-  }, [restoreSession]);
+  }, [restoreSession, isLoginPage]);
+
+  // Login page renders immediately — no auth gate
+  if (isLoginPage) {
+    return <Outlet />;
+  }
 
   // Show loading spinner while restoring session
   if (!sessionChecked || loading) {
@@ -107,11 +119,6 @@ function AdminLayout() {
         </div>
       </div>
     );
-  }
-
-  // Allow /admin/login to render without auth
-  if (location.pathname === "/admin/login") {
-    return <Outlet />;
   }
 
   // Redirect unauthenticated users to login

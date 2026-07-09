@@ -39,8 +39,6 @@ interface ProductFormState {
   active: boolean;
 }
 
-const API_BASE = getApiBaseUrl();
-
 function createEmptyForm(): ProductFormState {
   return {
     name_fr: "",
@@ -123,7 +121,7 @@ function AdminProducts() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/products`, { credentials: "include" });
+      const res = await fetch(`${getApiBaseUrl()}/products`, { credentials: "include" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Impossible de charger les produits");
       setProducts(Array.isArray(json.data) ? json.data : []);
@@ -185,7 +183,7 @@ function AdminProducts() {
         active: Boolean(form.active),
       };
 
-      const url = editingId ? `${API_BASE}/products/${editingId}` : `${API_BASE}/products`;
+      const url = editingId ? `${getApiBaseUrl()}/products/${editingId}` : `${getApiBaseUrl()}/products`;
       const method = editingId ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
@@ -214,7 +212,7 @@ function AdminProducts() {
 
   const handleToggleFeatured = async (product: Product) => {
     try {
-      const res = await fetch(`${API_BASE}/products/${product.id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/${product.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +231,7 @@ function AdminProducts() {
     if (!window.confirm("Supprimer ce produit ?")) return;
 
     try {
-      const res = await fetch(`${API_BASE}/products/${productId}`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/${productId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -257,7 +255,7 @@ function AdminProducts() {
     formData.append("image", file);
 
     try {
-      const res = await fetch(`${API_BASE}/products/upload-image`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/upload-image`, {
         method: "POST",
         credentials: "include",
         body: formData,

@@ -38,8 +38,6 @@ interface Review {
   };
 }
 
-const API_BASE = getApiBaseUrl();
-
 function AdminReviews() {
   const { hasPermission } = useAdminAuth();
   const navigate = useNavigate();
@@ -66,7 +64,7 @@ function AdminReviews() {
       if (search) params.append("search", search);
       if (productIdFilter) params.append("productId", productIdFilter);
 
-      const res = await fetch(`${API_BASE}/reviews?${params}`, {
+      const res = await fetch(`${getApiBaseUrl()}/reviews?${params}`, {
         credentials: "include",
       });
 
@@ -78,7 +76,7 @@ function AdminReviews() {
 
   const toggleVisibilityMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API_BASE}/reviews/${id}/visibility`, {
+      const res = await fetch(`${getApiBaseUrl()}/reviews/${id}/visibility`, {
         method: "PATCH",
         credentials: "include",
       });
@@ -97,7 +95,7 @@ function AdminReviews() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API_BASE}/reviews/${id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/reviews/${id}`, {
         method: "DELETE",
         credentials: "include",
       });
