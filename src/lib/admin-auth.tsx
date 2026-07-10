@@ -56,8 +56,6 @@ interface AdminAuthContextValue {
 
 const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 
-const API_BASE = getApiBaseUrl();
-
 // ── Provider ───────────────────────────────────────────────────
 
 /**
@@ -79,7 +77,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, {
+      const res = await fetch(`${getApiBaseUrl()}/auth/me`, {
         credentials: "include",
       });
 
@@ -97,7 +95,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API_BASE}/auth/admin/login`, {
+    const res = await fetch(`${getApiBaseUrl()}/auth/admin/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -115,7 +113,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/auth/logout`, {
+      await fetch(`${getApiBaseUrl()}/auth/logout`, {
         method: "POST",
         credentials: "include",
       });

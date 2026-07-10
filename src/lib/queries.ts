@@ -145,7 +145,22 @@ export const categoriesQuery = () =>
   queryOptions({
     queryKey: ["categories"],
     queryFn: async (): Promise<Category[]> => {
-      return [] as Category[];
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/categories`, { credentials: "include" });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json?.message || "Unable to load categories");
+        return (json?.data ?? []) as Category[];
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes("fetch") || error.name === "TypeError") {
+            throw new Error(
+              "Unable to connect to the backend server. Please verify it is running on port 5000.",
+            );
+          }
+          throw error;
+        }
+        throw new Error("An unexpected error occurred while loading categories.");
+      }
     },
   });
 
@@ -153,7 +168,24 @@ export const settingsQuery = () =>
   queryOptions({
     queryKey: ["store_settings"],
     queryFn: async (): Promise<StoreSettings | null> => {
-      return null;
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/store-settings`, {
+          credentials: "include",
+        });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json?.message || "Unable to load store settings");
+        return (json?.data as StoreSettings) ?? null;
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes("fetch") || error.name === "TypeError") {
+            throw new Error(
+              "Unable to connect to the backend server. Please verify it is running on port 5000.",
+            );
+          }
+          throw error;
+        }
+        throw new Error("An unexpected error occurred while loading store settings.");
+      }
     },
   });
 

@@ -58,7 +58,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 app.use(morgan("dev"));
 
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "server", "uploads")));
 app.use("/api/v1", modernRoutes);
 
 app.use((_req, _res, next) => next(ApiError.notFound("Route not found")));
@@ -73,6 +73,25 @@ app.use(
       return res.status(err.statusCode).json({
         success: false,
         statusCode: err.statusCode,
+        message: err.message,
+      });
+    }
+
+    if (err && typeof err === "object" && "code" in err) {
+      const multerCode = String((err as { code?: string }).code);
+      if (multerCode === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          success: false,
+          statusCode: 400,
+          message: "Image exceeds the 5MB upload limit.",
+        });
+      }
+    }
+
+    if (err instanceof Error && err.message.includes("Invalid file type")) {
+      return res.status(400).json({
+        success: false,
+        statusCode: 400,
         message: err.message,
       });
     }

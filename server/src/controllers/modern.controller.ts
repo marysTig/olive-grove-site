@@ -1,14 +1,23 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import { v2 as cloudinary } from "cloudinary";
 import { asyncHandler } from "@server/utils/asyncHandler";
 import { ApiError } from "@server/utils/ApiError";
 import { ApiResponse } from "@server/utils/ApiResponse";
-import { generateOrderNumber } from "@server/utils/orderNumberGenerator";
-import { env } from "@server/config/env.config";
+import { env, isCloudinaryConfigured } from "@server/config/env.config";
 import { AuthService } from "@server/services/auth.service";
 import { supabase } from "@server/database/supabase";
+import { assertSupabaseSchemaReady } from "@server/utils/schema-check";
+import {
+  computeProductStatus,
+  fetchOrderItems,
+  getUserRole,
+  setUserRole,
+  toApiRole,
+  toDbRole,
+  type OrderItemRow,
+} from "@server/utils/db-helpers";
 
 type AuthenticatedRequest = Request & {
   user?: {
@@ -50,6 +59,7 @@ function normalizeProductPayload(body: Record<string, unknown>) {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "");
+  const stock = Number(body.quantity ?? body.stock ?? 0);
   return {
     name_fr,
     name_ar,
@@ -58,7 +68,7 @@ function normalizeProductPayload(body: Record<string, unknown>) {
     description_ar: typeof body.description_ar === "string" ? body.description_ar.trim() : "",
     price: Number(body.price ?? 0),
     discount_pct: Number(body.discount_pct ?? 0),
-    quantity: Number(body.quantity ?? 0),
+    stock,
     category_id: typeof body.category_id === "string" ? body.category_id : null,
     images: Array.isArray(body.images)
       ? body.images.filter((item): item is string => typeof item === "string")
@@ -72,32 +82,16 @@ function normalizeProductPayload(body: Record<string, unknown>) {
     origin: typeof body.origin === "string" && body.origin.trim() ? body.origin.trim() : null,
     harvest_date:
       typeof body.harvest_date === "string" && body.harvest_date.trim()
-        ? new Date(body.harvest_date)
-        : body.harvest_date instanceof Date
-          ? body.harvest_date
-          : null,
+        ? body.harvest_date.trim()
+        : null,
     featured: body.featured === true || body.featured === "true",
-    active: body.active === true || body.active === "true",
-    status: (() => {
-      if (typeof body.status === "string" && ["in_stock", "low_stock", "out_of_stock"].includes(body.status)) {
-        return body.status;
-      }
-      const qty = Number(body.quantity ?? 0);
-      if (qty === 0) return "out_of_stock";
-      if (qty <= 10) return "low_stock";
-      return "in_stock";
-    })(),
+    active: body.active === false || body.active === "false" ? false : body.active !== false,
   };
 }
 
 function buildProductResponse(product: Record<string, unknown>) {
-  const productId =
-    typeof product.id === "string"
-      ? product.id
-      : typeof product._id === "object" && product._id && "toString" in (product._id as object)
-        ? String(product._id)
-        : "";
-
+  const productId = typeof product.id === "string" ? product.id : "";
+  const stock = Number(product.stock ?? product.quantity ?? 0);
   const harvestDate = product.harvest_date ?? product.harvestDate;
   const createdAt = product.created_at ?? product.createdAt;
   const updatedAt = product.updated_at ?? product.updatedAt;
@@ -109,10 +103,10 @@ function buildProductResponse(product: Record<string, unknown>) {
     slug: (product.slug as string) ?? "",
     description_fr: (product.description_fr as string) ?? "",
     description_ar: (product.description_ar as string) ?? "",
-    price: (product.price as number) ?? 0,
-    discount_pct: (product.discount_pct as number) ?? 0,
-    quantity: (product.quantity as number) ?? 0,
-    status: (product.status as string) ?? "out_of_stock",
+    price: Number(product.price ?? 0),
+    discount_pct: Number(product.discount_pct ?? 0),
+    quantity: stock,
+    status: computeProductStatus(stock),
     category_id: (product.category_id as string | null) ?? null,
     images: (product.images as string[]) ?? [],
     image_public_ids: (product.image_public_ids as string[]) ?? [],
@@ -122,18 +116,26 @@ function buildProductResponse(product: Record<string, unknown>) {
     harvest_date: harvestDate
       ? harvestDate instanceof Date
         ? harvestDate.toISOString()
-        : (harvestDate as string)
+        : String(harvestDate)
       : null,
     featured: Boolean(product.featured ?? false),
     active: Boolean(product.active ?? true),
+    created_at:
+      createdAt instanceof Date
+        ? createdAt.toISOString()
+        : String(createdAt ?? new Date().toISOString()),
+    updated_at:
+      updatedAt instanceof Date
+        ? updatedAt.toISOString()
+        : String(updatedAt ?? new Date().toISOString()),
     createdAt:
       createdAt instanceof Date
         ? createdAt.toISOString()
-        : ((createdAt as string) ?? new Date().toISOString()),
+        : String(createdAt ?? new Date().toISOString()),
     updatedAt:
       updatedAt instanceof Date
         ? updatedAt.toISOString()
-        : ((updatedAt as string) ?? new Date().toISOString()),
+        : String(updatedAt ?? new Date().toISOString()),
   };
 }
 
@@ -166,124 +168,115 @@ export function normalizeOrderPayload(body: Record<string, unknown>) {
   };
 }
 
+function mapOrderItems(items: OrderItemRow[] | Array<Record<string, unknown>>) {
+  return items.map((item) => ({
+    product_id: (item as OrderItemRow).product_id ?? item.productId ?? item.product_id ?? null,
+    name_ar: (item as OrderItemRow).name_ar ?? item.nameAr ?? item.name_ar ?? "",
+    name_fr: (item as OrderItemRow).name_fr ?? item.nameFr ?? item.name_fr ?? "",
+    quantity: Number((item as OrderItemRow).quantity ?? item.quantity ?? 0),
+    price: Number((item as OrderItemRow).price ?? item.price ?? 0),
+    image_url: (item as OrderItemRow).image_url ?? item.imageUrl ?? item.image_url ?? null,
+  }));
+}
+
 function buildOrderResponse(
-  order:
-    | Record<string, unknown>
-    | { [key: string]: unknown }
-    | { toObject?: () => Record<string, unknown> },
+  order: Record<string, unknown>,
+  items: OrderItemRow[] | Array<Record<string, unknown>> = [],
 ) {
-  const normalizedOrder =
-    typeof (order as { toObject?: () => Record<string, unknown> }).toObject === "function"
-      ? (order as { toObject: () => Record<string, unknown> }).toObject()
-      : (order as Record<string, unknown>);
+  const normalizedOrder = order;
   const createdAt =
-    normalizedOrder.createdAt instanceof Date
-      ? normalizedOrder.createdAt.toISOString()
-      : typeof normalizedOrder.createdAt === "string"
-        ? normalizedOrder.createdAt
+    normalizedOrder.created_at instanceof Date
+      ? normalizedOrder.created_at.toISOString()
+      : typeof normalizedOrder.created_at === "string"
+        ? normalizedOrder.created_at
         : new Date().toISOString();
 
-  // Convert order items from camelCase to snake_case
-  const items = Array.isArray(normalizedOrder.items)
-    ? (normalizedOrder.items as Array<Record<string, unknown>>).map((item) => ({
-        product_id: item.productId ?? item.product_id ?? null,
-        name_ar: item.nameAr ?? item.name_ar ?? "",
-        name_fr: item.nameFr ?? item.name_fr ?? "",
-        quantity: Number(item.quantity ?? 0),
-        price: Number(item.price ?? 0),
-        image_url: item.imageUrl ?? item.image_url ?? null,
-      }))
-    : [];
+  const mappedItems = mapOrderItems(items.length > 0 ? items : (normalizedOrder.items as Array<Record<string, unknown>>) ?? []);
 
   return {
-    id: normalizedOrder.id ?? normalizedOrder._id ?? "",
-    order_number: normalizedOrder.orderNumber ?? normalizedOrder.order_number ?? 0,
-    user_id: normalizedOrder.userId ?? normalizedOrder.user_id ?? null,
+    id: normalizedOrder.id ?? "",
+    order_number: normalizedOrder.order_number ?? normalizedOrder.orderNumber ?? 0,
+    user_id: normalizedOrder.user_id ?? normalizedOrder.userId ?? null,
     status: normalizedOrder.status ?? "pending",
     payment_method:
-      normalizedOrder.paymentMethod ?? normalizedOrder.payment_method ?? "cash_on_delivery",
-    customer_name: normalizedOrder.customerName ?? normalizedOrder.customer_name ?? "",
-    customer_email: normalizedOrder.customerEmail ?? normalizedOrder.customer_email ?? null,
-    customer_phone: normalizedOrder.customerPhone ?? normalizedOrder.customer_phone ?? "",
-    delivery_address: normalizedOrder.deliveryAddress ?? normalizedOrder.delivery_address ?? "",
-    phone:
-      normalizedOrder.customerPhone ??
+      normalizedOrder.payment_method ?? normalizedOrder.paymentMethod ?? "cash_on_delivery",
+    customer_name: normalizedOrder.customer_name ?? normalizedOrder.customerName ?? "",
+    customer_email: normalizedOrder.customer_email ?? normalizedOrder.customerEmail ?? null,
+    customer_phone:
       normalizedOrder.customer_phone ??
+      normalizedOrder.customerPhone ??
+      normalizedOrder.phone ??
+      "",
+    delivery_address:
+      normalizedOrder.delivery_address ??
+      normalizedOrder.deliveryAddress ??
+      normalizedOrder.address ??
+      "",
+    phone:
+      normalizedOrder.customer_phone ??
+      normalizedOrder.customerPhone ??
       normalizedOrder.phone ??
       "",
     address:
-      normalizedOrder.deliveryAddress ??
       normalizedOrder.delivery_address ??
+      normalizedOrder.deliveryAddress ??
       normalizedOrder.address ??
       "",
     wilaya: normalizedOrder.wilaya ?? "",
     notes: normalizedOrder.notes ?? null,
-    coupon_code: normalizedOrder.couponCode ?? normalizedOrder.coupon_code ?? null,
+    coupon_code: normalizedOrder.coupon_code ?? normalizedOrder.couponCode ?? null,
     subtotal: Number(normalizedOrder.subtotal ?? 0),
-    shipping_fee: Number(normalizedOrder.shippingFee ?? normalizedOrder.shipping_fee ?? 0),
+    shipping_fee: Number(normalizedOrder.shipping_fee ?? normalizedOrder.shippingFee ?? 0),
     discount: Number(normalizedOrder.discount ?? 0),
     total: Number(normalizedOrder.total ?? 0),
-    products: items,
-    items,
-    inventory_deducted: normalizedOrder.inventoryDeducted ?? false,
+    products: mappedItems,
+    items: mappedItems,
+    inventory_deducted: Boolean(
+      normalizedOrder.inventory_deducted ?? normalizedOrder.inventoryDeducted ?? false,
+    ),
     created_at: createdAt,
     createdAt,
   };
 }
 
-function buildReviewResponse(review: {
-  id?: string;
-  _id?: unknown;
-  productId?: unknown;
-  userId?: unknown;
-  customerName?: string;
-  customerEmail?: string;
-  rating?: number;
-  comment?: string;
-  isVisible?: boolean;
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
-}) {
-  const reviewId =
-    typeof review.id === "string"
-      ? review.id
-      : typeof review._id === "object" && review._id && "toString" in review._id
-        ? String(review._id)
-        : "";
-  const productId =
-    typeof review.productId === "string"
-      ? review.productId
-      : typeof review.productId === "object" && review.productId && "toString" in review.productId
-        ? String(review.productId)
-        : "";
-  const userId =
-    typeof review.userId === "string"
-      ? review.userId
-      : typeof review.userId === "object" && review.userId && "toString" in review.userId
-        ? String(review.userId)
-        : null;
+function buildReviewResponse(review: Record<string, unknown>) {
   return {
-    id: reviewId,
-    productId,
-    userId,
-    customerName: review.customerName ?? "",
-    customerEmail: review.customerEmail ?? "",
-    rating: review.rating ?? 5,
-    comment: review.comment ?? "",
-    isVisible: review.isVisible ?? true,
-    createdAt:
-      review.createdAt instanceof Date
-        ? review.createdAt.toISOString()
-        : (review.createdAt ?? new Date().toISOString()),
-    updatedAt:
-      review.updatedAt instanceof Date
-        ? review.updatedAt.toISOString()
-        : (review.updatedAt ?? new Date().toISOString()),
+    id: String(review.id ?? ""),
+    productId: String(review.product_id ?? review.productId ?? ""),
+    userId: review.user_id ?? review.userId ?? null,
+    customerName: String(review.customer_name ?? review.customerName ?? ""),
+    customerEmail: String(review.customer_email ?? review.customerEmail ?? ""),
+    rating: Number(review.rating ?? 5),
+    comment: String(review.comment ?? ""),
+    isVisible: Boolean(review.is_visible ?? review.isVisible ?? true),
+    createdAt: String(review.created_at ?? review.createdAt ?? new Date().toISOString()),
+    updatedAt: String(review.updated_at ?? review.updatedAt ?? new Date().toISOString()),
   };
 }
 
+async function buildOrdersWithItems(orders: Array<Record<string, unknown>>) {
+  const itemsMap = await fetchOrderItems(orders.map((o) => String(o.id)));
+  return orders.map((order) => buildOrderResponse(order, itemsMap.get(String(order.id)) ?? []));
+}
+
+async function listAuthUsers() {
+  const { data, error } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  if (error) throw ApiError.internal("Failed to fetch users");
+  return data.users;
+}
+
 export const health = asyncHandler(async (_req: Request, res: Response) => {
+<<<<<<< HEAD
   ApiResponse.success(res, { status: "healthy", store: "supabase" }, "Server is running");
+=======
+  try {
+    await assertSupabaseSchemaReady();
+    ApiResponse.success(res, { status: "healthy", store: "supabase" }, "Server is running");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Schema validation failed";
+    throw ApiError.serviceUnavailable(message);
+  }
+>>>>>>> a4a14fd6229561491238e039b19e1abefd45246c
 });
 
 export const getProducts = asyncHandler(async (_req: Request, res: Response) => {
@@ -419,61 +412,52 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
   ApiResponse.success(res, null, "Product deleted successfully");
 });
 
+const runImageUploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (req.file) {
+    return next();
+  }
+  upload.single("image")(req, res, (error) => {
+    if (error) {
+      return next(error);
+    }
+    next();
+  });
+};
+
 export const uploadProductImage = [
-  upload.single("image"),
+  runImageUploadMiddleware,
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
       throw ApiError.badRequest("No image file provided");
     }
 
-    // Check if Cloudinary credentials are configured
-    const isCloudinaryConfigured = 
-      env.CLOUDINARY_CLOUD_NAME && 
-      env.CLOUDINARY_API_KEY && 
-      env.CLOUDINARY_API_SECRET;
-
-    let uploadResult: { secure_url: string; public_id: string };
-
-    if (isCloudinaryConfigured) {
-      // Use Cloudinary if configured
-      uploadResult = await new Promise<{ secure_url: string; public_id: string }>(
-        (resolve, reject) => {
-          const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: env.CLOUDINARY_FOLDER || "olive-grove-emporium/products",
-              resource_type: "image",
-            },
-            (error, result) => {
-              if (error || !result) {
-                reject(error || new Error("Upload failed"));
-              } else {
-                resolve({ secure_url: result.secure_url, public_id: result.public_id });
-              }
-            },
-          );
-          streamifier.createReadStream(req.file!.buffer).pipe(uploadStream);
-        },
+    if (!isCloudinaryConfigured()) {
+      throw ApiError.serviceUnavailable(
+        "Image upload is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.",
       );
-    } else {
-      // Fallback: use dummy images if Cloudinary isn't configured
-      const dummyImages = [
-        "https://images.unsplash.com/photo-1474979266404-7eaacbcd5537?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1536000238517-f15d69fbbf0f?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1556542378-383e398e5177?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1560493676-04071c5f467b?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1466637574441-749b8f19452f?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?w=800&h=600&fit=crop",
-        "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&h=600&fit=crop",
-      ];
-      const randomIndex = Math.floor(Math.random() * dummyImages.length);
-      uploadResult = {
-        secure_url: dummyImages[randomIndex],
-        public_id: `dummy-image-${Date.now()}`
-      };
     }
+
+    const uploadResult = await new Promise<{ secure_url: string; public_id: string }>(
+      (resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: env.CLOUDINARY_FOLDER || "olive-grove-emporium/products",
+            resource_type: "image",
+          },
+          (error, result) => {
+            if (error || !result) {
+              reject(error || new Error("Cloudinary upload failed"));
+            } else {
+              resolve({ secure_url: result.secure_url, public_id: result.public_id });
+            }
+          },
+        );
+        streamifier.createReadStream(req.file!.buffer).pipe(uploadStream);
+      },
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Cloudinary upload failed";
+      throw ApiError.internal(`Image upload failed: ${message}`);
+    });
 
     ApiResponse.success(res, uploadResult, "Image uploaded successfully");
   }),
@@ -481,46 +465,28 @@ export const uploadProductImage = [
 
 export const loginAdmin = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body as { email?: string; password?: string };
-  const user = await AuthService.login(email || "", password || "");
-  
+  const { user, session } = await AuthService.login(email || "", password || "");
+
   if (user.role !== "admin") {
     throw ApiError.forbidden("Only administrators can access the admin panel.");
   }
 
-  const token = AuthService.generateToken(user);
-  AuthService.setTokenCookie(res, token);
-  
-  // also set the legacy cookie just in case
-  res.cookie("jwt", `admin-${user.id}`, { httpOnly: true, sameSite: "lax", path: "/" });
-
+  AuthService.setSessionCookies(res, session);
   ApiResponse.success(res, { user }, "Admin login successful");
 });
 
 export const logout = asyncHandler(async (_req: Request, res: Response) => {
-  AuthService.clearTokenCookie(res);
+  AuthService.clearSessionCookies(res);
   ApiResponse.success(res, null, "Logged out successfully");
 });
 
 export const getMe = asyncHandler(async (req: Request, res: Response) => {
-  const token = req.cookies?.jwt;
-  
-  // Legacy logic fallback: if token looks like "admin-1234"
-  let id = "";
-  if (token && token.startsWith("admin-")) {
-    id = token.replace("admin-", "");
-  } else if (req.user?.id) {
-    id = req.user.id;
-  }
-  
-  if (!id) {
+  const token = AuthService.extractTokenFromRequest(req);
+  if (!token) {
     throw ApiError.unauthorized("Not authenticated");
   }
 
-  const user = await AuthService.getUserById(id);
-  if (!user) {
-    throw ApiError.unauthorized("Not authenticated");
-  }
-  
+  const user = await AuthService.verifyAccessToken(token);
   ApiResponse.success(res, { user }, "Authenticated");
 });
 
@@ -529,48 +495,58 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
     throw ApiError.forbidden("Only administrators can access dashboard stats");
   }
 
-  const [{ data: allOrders }, { count: productCount }, { count: customerCount }] = await Promise.all([
-    supabase.from("orders").select("status,total,created_at,items"),
+  const [{ data: allOrders }, { count: productCount }, authUsers] = await Promise.all([
+    supabase.from("orders").select("*"),
     supabase.from("products").select("*", { count: "exact", head: true }),
-    supabase.from("mongo_users").select("*", { count: "exact", head: true }).eq("role", "client"),
+    listAuthUsers(),
   ]);
 
   const orders = allOrders ?? [];
-  const revenue = orders.filter(o => o.status === "delivered").reduce((s, o) => s + Number(o.total || 0), 0);
-  const orderStatusCounts = orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {} as Record<string, number>);
+  const itemsMap = await fetchOrderItems(orders.map((o) => String(o.id)));
+  const customerCount = (
+    await Promise.all(authUsers.map((u) => getUserRole(u.id)))
+  ).filter((role) => role === "customer").length;
+
+  const revenue = orders
+    .filter((o) => o.status === "delivered")
+    .reduce((s, o) => s + Number(o.total || 0), 0);
+  const orderStatusCounts = orders.reduce(
+    (acc, o) => {
+      acc[o.status] = (acc[o.status] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
 
   const daysParam = req.query.days ? parseInt(req.query.days as string, 10) : 30;
-  // If daysParam is 0 or negative, maybe it means all time, but let's just use it as is.
-  // We'll set a default of 30 if parsing fails.
   const days = isNaN(daysParam) ? 30 : daysParam;
-  
+
   const fromDate = new Date();
   fromDate.setDate(fromDate.getDate() - days);
-  
+
   const revenueByDayMap = new Map<string, Record<string, number>>();
   const allProductNames = new Set<string>();
-  
+
   for (const o of orders) {
     if (o.status === "delivered" && (days === 0 || new Date(o.created_at) >= fromDate)) {
       const day = o.created_at.slice(0, 10);
       if (!revenueByDayMap.has(day)) revenueByDayMap.set(day, {});
       const dayData = revenueByDayMap.get(day)!;
+      const items = itemsMap.get(String(o.id)) ?? [];
 
-      const items = Array.isArray(o.items) ? o.items : [];
       for (const item of items) {
-        const anyItem = item as any;
-        const productName = String(anyItem.name_fr || anyItem.name_ar || anyItem.nameFr || anyItem.nameAr || "Unknown");
+        const productName = String(item.name_fr || item.name_ar || "Unknown");
         allProductNames.add(productName);
-        const itemRev = Number(anyItem.price || 0) * Number(anyItem.quantity || 1);
+        const itemRev = Number(item.price || 0) * Number(item.quantity || 1);
         dayData[productName] = (dayData[productName] || 0) + itemRev;
       }
     }
   }
-  
+
   const revenueByDay = Array.from(revenueByDayMap.entries())
     .map(([day, productRevenues]) => ({
       _id: day,
-      ...productRevenues
+      ...productRevenues,
     }))
     .sort((a, b) => a._id.localeCompare(b._id));
 
@@ -582,7 +558,7 @@ export const getDashboardStats = asyncHandler(async (req: AuthenticatedRequest, 
       pendingOrders: orderStatusCounts.pending || 0,
       deliveredOrders: orderStatusCounts.delivered || 0,
       revenue,
-      customers: customerCount ?? 0,
+      customers: customerCount,
       revenueByDay,
       productNames: Array.from(allProductNames),
     },
@@ -602,7 +578,7 @@ export const updateAdminLanguage = asyncHandler(async (req: AuthenticatedRequest
     throw ApiError.badRequest("Language must be either 'fr' or 'ar'");
   }
 
-  await supabase.from("mongo_users").update({ language }).eq("id", req.user.id);
+  await supabase.from("profiles").update({ language }).eq("id", req.user.id);
 
   ApiResponse.success(res, { language }, "Language updated successfully");
 });
@@ -613,93 +589,169 @@ export const getUsersAdmin = asyncHandler(async (req: AuthenticatedRequest, res:
 
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
+  const search = typeof req.query.search === "string" ? req.query.search.toLowerCase() : "";
+  const roleFilter = typeof req.query.role === "string" ? req.query.role : undefined;
+  const isActiveFilter =
+    req.query.isActive !== undefined ? req.query.isActive === "true" : undefined;
 
-  let query = supabase.from("mongo_users").select("id,full_name,email,role,is_active,created_at,last_login", { count: "exact" }).order("created_at", { ascending: false });
+  const authUsers = await listAuthUsers();
+  const { data: profiles } = await supabase.from("profiles").select("id,name,is_active,created_at");
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  if (req.query.search) {
-    const s = req.query.search as string;
-    query = query.or(`full_name.ilike.%${s}%,email.ilike.%${s}%`);
+  let users = await Promise.all(
+    authUsers.map(async (authUser) => {
+      const profile = profileMap.get(authUser.id);
+      const role = await getUserRole(authUser.id);
+      return {
+        id: authUser.id,
+        fullName: profile?.name ?? authUser.user_metadata?.name ?? authUser.email ?? "",
+        email: authUser.email ?? "",
+        role: toApiRole(role),
+        isActive: profile?.is_active ?? true,
+        createdAt: profile?.created_at ?? authUser.created_at,
+        lastLogin: authUser.last_sign_in_at ?? null,
+      };
+    }),
+  );
+
+  if (search) {
+    users = users.filter(
+      (u) => u.fullName.toLowerCase().includes(search) || u.email.toLowerCase().includes(search),
+    );
   }
-  if (req.query.role) query = query.eq("role", req.query.role as string);
-  if (req.query.isActive !== undefined) query = query.eq("is_active", req.query.isActive === "true");
+  if (roleFilter) users = users.filter((u) => u.role === roleFilter);
+  if (isActiveFilter !== undefined) users = users.filter((u) => u.isActive === isActiveFilter);
 
-  query = query.range(from, to);
-  const { data: users, count } = await query;
-  const total = count ?? 0;
+  const total = users.length;
+  const paginated = users.slice((page - 1) * limit, page * limit);
 
-  ApiResponse.success(res, {
-    users: (users ?? []).map(u => ({ id: u.id, fullName: u.full_name, email: u.email, role: u.role, isActive: u.is_active, createdAt: u.created_at, lastLogin: u.last_login })),
-    pagination: { total, page, limit, pages: Math.ceil(total / limit) },
-  }, "Users retrieved successfully");
+  ApiResponse.success(
+    res,
+    {
+      users: paginated,
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) },
+    },
+    "Users retrieved successfully",
+  );
 });
 
 export const createUserAdmin = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can create users");
 
-  const { fullName, email, password, role } = req.body;
-  const { data: existing } = await supabase.from("mongo_users").select("id").eq("email", email).maybeSingle();
-  if (existing) throw ApiError.conflict("Email address is already in use");
+  const { fullName, email, password, role } = req.body as {
+    fullName?: string;
+    email?: string;
+    password?: string;
+    role?: string;
+  };
 
-  const bcrypt = await import("bcryptjs");
-  const passwordHash = await bcrypt.hash(password, 12);
+  if (!fullName || !email || !password) {
+    throw ApiError.badRequest("Full name, email, and password are required");
+  }
 
-  const { data: user, error } = await supabase.from("mongo_users").insert({
-    full_name: fullName,
-    email,
-    password_hash: passwordHash,
-    role: role === "admin" ? "admin" : "client",
+  const { data, error } = await supabase.auth.admin.createUser({
+    email: email.toLowerCase().trim(),
+    password,
+    email_confirm: true,
+    user_metadata: { name: fullName },
+  });
+
+  if (error || !data.user) {
+    if (error?.message?.toLowerCase().includes("already")) {
+      throw ApiError.conflict("Email address is already in use");
+    }
+    throw ApiError.internal(error?.message || "Failed to create user");
+  }
+
+  await supabase.from("profiles").upsert({
+    id: data.user.id,
+    name: fullName,
     is_active: true,
-  }).select("id,full_name,email,role,is_active,created_at").single();
+    language: "fr",
+  });
+  await setUserRole(data.user.id, toDbRole(role));
 
-  if (error || !user) throw ApiError.internal("Failed to create user");
-  ApiResponse.success(res, { user: { id: user.id, fullName: user.full_name, email: user.email, role: user.role, isActive: user.is_active } }, "User created successfully");
+  ApiResponse.success(
+    res,
+    {
+      user: {
+        id: data.user.id,
+        fullName,
+        email: data.user.email,
+        role: toApiRole(toDbRole(role)),
+        isActive: true,
+      },
+    },
+    "User created successfully",
+  );
 });
 
 export const updateUserAdmin = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can update users");
 
-  const { fullName, email, role, isActive } = req.body;
+  const { fullName, email, role, isActive } = req.body as {
+    fullName?: string;
+    email?: string;
+    role?: string;
+    isActive?: boolean;
+  };
   const { id } = req.params;
 
-  const { data: user } = await supabase.from("mongo_users").select("*").eq("id", id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  if (isActive === false && req.user?.id === id) throw ApiError.badRequest("You cannot deactivate your own account");
-  if (role !== undefined && role !== user.role && req.user?.id === id) throw ApiError.badRequest("You cannot change your own role");
-
-  const payload: Record<string, unknown> = {};
-  if (fullName !== undefined) payload.full_name = fullName;
-  if (email !== undefined && email !== user.email) {
-    const { data: emailExists } = await supabase.from("mongo_users").select("id").eq("email", email).neq("id", id).maybeSingle();
-    if (emailExists) throw ApiError.conflict("Email address is already in use");
-    payload.email = email;
+  const existingUser = await AuthService.getUserById(id);
+  if (!existingUser) throw ApiError.notFound("User not found");
+  if (isActive === false && req.user?.id === id) {
+    throw ApiError.badRequest("You cannot deactivate your own account");
   }
-  if (role !== undefined) payload.role = role === "admin" ? "admin" : "client";
-  if (isActive !== undefined) payload.is_active = isActive;
+  if (role !== undefined && role !== existingUser.role && req.user?.id === id) {
+    throw ApiError.badRequest("You cannot change your own role");
+  }
 
-  const { data: updated } = await supabase.from("mongo_users").update(payload).eq("id", id).select("id,full_name,email,role,is_active").single();
-  ApiResponse.success(res, { user: { id: updated?.id, fullName: updated?.full_name, email: updated?.email, role: updated?.role, isActive: updated?.is_active } }, "User updated successfully");
+  if (email && email !== existingUser.email) {
+    const { error } = await supabase.auth.admin.updateUserById(id, { email });
+    if (error) throw ApiError.conflict(error.message);
+  }
+
+  const profilePayload: Record<string, unknown> = {};
+  if (fullName !== undefined) profilePayload.name = fullName;
+  if (isActive !== undefined) profilePayload.is_active = isActive;
+  if (Object.keys(profilePayload).length > 0) {
+    await supabase.from("profiles").update(profilePayload).eq("id", id);
+  }
+
+  if (role !== undefined) {
+    await setUserRole(id, toDbRole(role));
+  }
+
+  const updated = await AuthService.getUserById(id);
+  ApiResponse.success(res, { user: updated }, "User updated successfully");
 });
 
 export const resetPasswordAdmin = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can reset passwords");
-  const { password } = req.body;
+  const { password } = req.body as { password?: string };
   const { id } = req.params;
-  const { data: user } = await supabase.from("mongo_users").select("id").eq("id", id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  const bcrypt = await import("bcryptjs");
-  const passwordHash = await bcrypt.hash(password, 12);
-  await supabase.from("mongo_users").update({ password_hash: passwordHash }).eq("id", id);
+
+  if (!password) throw ApiError.badRequest("Password is required");
+
+  const existingUser = await AuthService.getUserById(id);
+  if (!existingUser) throw ApiError.notFound("User not found");
+
+  const { error } = await supabase.auth.admin.updateUserById(id, { password });
+  if (error) throw ApiError.internal(error.message);
+
   ApiResponse.success(res, null, "User password reset successfully");
 });
 
 export const deleteUserAdmin = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can delete users");
   const { id } = req.params;
-  if (req.user?.id === id) throw ApiError.badRequest("You cannot delete your own administrative account");
-  const { error } = await supabase.from("mongo_users").delete().eq("id", id);
+  if (req.user?.id === id) {
+    throw ApiError.badRequest("You cannot delete your own administrative account");
+  }
+
+  const { error } = await supabase.auth.admin.deleteUser(id);
   if (error) throw ApiError.notFound("User not found");
+
   ApiResponse.success(res, null, "User deleted successfully");
 });
 
@@ -718,13 +770,14 @@ export const createOrder = asyncHandler(async (req: AuthenticatedRequest, res: R
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
-      order_number: generateOrderNumber(),
       user_id: req.user?.id ?? null,
-      payment_method: "cash_on_delivery",
+      payment_method: "cod",
       status: "pending",
       customer_name: payload.customerName,
       customer_email: payload.customerEmail,
       customer_phone: payload.customerPhone,
+      phone: payload.customerPhone,
+      address: payload.deliveryAddress,
       delivery_address: payload.deliveryAddress,
       wilaya: payload.wilaya,
       notes: payload.notes,
@@ -733,16 +786,39 @@ export const createOrder = asyncHandler(async (req: AuthenticatedRequest, res: R
       discount: payload.discount,
       shipping_fee: payload.shippingFee,
       total: payload.total,
-      items: payload.items,
     })
     .select()
     .single();
 
   if (error || !order) {
-    throw ApiError.internal("Failed to create order");
+    throw ApiError.internal(error?.message || "Failed to create order");
   }
 
-  ApiResponse.created(res, buildOrderResponse(order), "Order created successfully");
+  if (payload.items.length > 0) {
+    const { error: itemsError } = await supabase.from("order_items").insert(
+      payload.items.map((item) => ({
+        order_id: order.id,
+        product_id: item.productId,
+        name_ar: item.nameAr,
+        name_fr: item.nameFr,
+        quantity: item.quantity,
+        price: item.price,
+        image_url: item.imageUrl,
+      })),
+    );
+
+    if (itemsError) {
+      await supabase.from("orders").delete().eq("id", order.id);
+      throw ApiError.internal("Failed to create order items");
+    }
+  }
+
+  const itemsMap = await fetchOrderItems([order.id]);
+  ApiResponse.created(
+    res,
+    buildOrderResponse(order, itemsMap.get(order.id) ?? []),
+    "Order created successfully",
+  );
 });
 
 export const getOrders = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -753,11 +829,8 @@ export const getOrders = asyncHandler(async (req: AuthenticatedRequest, res: Res
   }
   const { data: orders, error } = await query;
   if (error) throw ApiError.internal("Failed to fetch orders");
-  ApiResponse.success(
-    res,
-    (orders ?? []).map((o) => buildOrderResponse(o)),
-    "Orders fetched successfully",
-  );
+  const withItems = await buildOrdersWithItems((orders ?? []) as Array<Record<string, unknown>>);
+  ApiResponse.success(res, withItems, "Orders fetched successfully");
 });
 
 export const getOrderById = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -771,7 +844,12 @@ export const getOrderById = asyncHandler(async (req: AuthenticatedRequest, res: 
   if (!isAdmin && order.user_id !== req.user?.id) {
     throw ApiError.forbidden("You are not authorized to view this order");
   }
-  ApiResponse.success(res, buildOrderResponse(order), "Order fetched successfully");
+  const itemsMap = await fetchOrderItems([order.id]);
+  ApiResponse.success(
+    res,
+    buildOrderResponse(order, itemsMap.get(order.id) ?? []),
+    "Order fetched successfully",
+  );
 });
 
 export const updateOrderStatus = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -788,38 +866,54 @@ export const updateOrderStatus = asyncHandler(async (req: AuthenticatedRequest, 
 
   const newStatus = typeof req.body?.status === "string" ? req.body.status : "pending";
   const oldStatus = order.status;
-  const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+  const itemsMap = await fetchOrderItems([order.id]);
+  const orderItems = itemsMap.get(order.id) ?? [];
 
-  // Deduct inventory when status changes to "shipped" and not already deducted
   if (oldStatus !== "shipped" && newStatus === "shipped" && !order.inventory_deducted) {
     for (const item of orderItems) {
-      const productId = item.product_id ?? item.productId;
+      const productId = item.product_id;
       if (productId) {
-        const { data: product } = await supabase.from("products").select("id,name_fr,quantity").eq("id", productId).single();
+        const { data: product } = await supabase
+          .from("products")
+          .select("id,name_fr,stock")
+          .eq("id", productId)
+          .single();
         if (!product) throw ApiError.badRequest(`Product ${productId} not found`);
-        if ((product.quantity as number) < Number(item.quantity)) {
+        if ((product.stock as number) < Number(item.quantity)) {
           throw ApiError.badRequest(`Insufficient stock for ${product.name_fr}`);
         }
       }
     }
     for (const item of orderItems) {
-      const productId = item.product_id ?? item.productId;
+      const productId = item.product_id;
       if (productId) {
-        const { data: p } = await supabase.from("products").select("quantity").eq("id", productId).single();
-        if (p) await supabase.from("products").update({ quantity: (p.quantity as number) - Number(item.quantity) }).eq("id", productId);
+        const { data: p } = await supabase.from("products").select("stock").eq("id", productId).single();
+        if (p) {
+          await supabase
+            .from("products")
+            .update({ stock: (p.stock as number) - Number(item.quantity) })
+            .eq("id", productId);
+        }
       }
     }
   }
 
   const { data: updated, error: updateErr } = await supabase
     .from("orders")
-    .update({ status: newStatus, inventory_deducted: newStatus === "shipped" ? true : order.inventory_deducted })
+    .update({
+      status: newStatus,
+      inventory_deducted: newStatus === "shipped" ? true : order.inventory_deducted,
+    })
     .eq("id", req.params.id)
     .select()
     .single();
   if (updateErr || !updated) throw ApiError.internal("Failed to update order status");
 
-  ApiResponse.success(res, buildOrderResponse(updated), "Order status updated successfully");
+  ApiResponse.success(
+    res,
+    buildOrderResponse(updated, orderItems),
+    "Order status updated successfully",
+  );
 });
 
 export const deleteOrder = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -834,18 +928,24 @@ export const deleteOrder = asyncHandler(async (req: AuthenticatedRequest, res: R
     .single();
   if (fetchErr || !order) throw ApiError.notFound("Order not found");
 
-  // Restock if inventory was deducted
   if (order.inventory_deducted) {
-    const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const itemsMap = await fetchOrderItems([order.id]);
+    const orderItems = itemsMap.get(order.id) ?? [];
     for (const item of orderItems) {
-      const productId = item.product_id ?? item.productId;
+      const productId = item.product_id;
       if (productId) {
-        const { data: p } = await supabase.from("products").select("quantity").eq("id", productId).single();
-        if (p) await supabase.from("products").update({ quantity: (p.quantity as number) + Number(item.quantity) }).eq("id", productId);
+        const { data: p } = await supabase.from("products").select("stock").eq("id", productId).single();
+        if (p) {
+          await supabase
+            .from("products")
+            .update({ stock: (p.stock as number) + Number(item.quantity) })
+            .eq("id", productId);
+        }
       }
     }
   }
 
+  await supabase.from("order_items").delete().eq("order_id", order.id);
   await supabase.from("orders").delete().eq("id", req.params.id);
   ApiResponse.success(res, null, "Order deleted successfully");
 });
@@ -860,6 +960,7 @@ export const getProductAnalytics = asyncHandler(async (req: AuthenticatedRequest
   const products = productsData ?? [];
   const { data: deliveredOrdersData } = await supabase.from("orders").select("*").eq("status", "delivered");
   const deliveredOrders = deliveredOrdersData ?? [];
+  const deliveredItemsMap = await fetchOrderItems(deliveredOrders.map((o) => String(o.id)));
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -876,19 +977,19 @@ export const getProductAnalytics = asyncHandler(async (req: AuthenticatedRequest
     let soldTotal = 0;
     let revenue = 0;
 
-    const monthlySales = new Map<string, number>(); // key: "YYYY-MM"
+    const monthlySales = new Map<string, number>();
 
     for (const order of deliveredOrders) {
-      const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+      const orderItems = deliveredItemsMap.get(String(order.id)) ?? [];
       for (const item of orderItems) {
-        const itemProductId = String(item.product_id ?? item.productId ?? "");
+        const itemProductId = String(item.product_id ?? "");
         if (itemProductId === productId) {
           const qty = Number(item.quantity ?? 0);
           const price = Number(item.price ?? 0);
           revenue += qty * price;
           soldTotal += qty;
 
-          const orderDate = new Date(order.created_at ?? order.createdAt);
+          const orderDate = new Date(order.created_at);
           const monthKey = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, "0")}`;
           monthlySales.set(monthKey, (monthlySales.get(monthKey) || 0) + qty);
 
@@ -930,6 +1031,7 @@ export const getProductAnalyticsById = asyncHandler(async (req: AuthenticatedReq
 
   const { data: deliveredOrdersData } = await supabase.from("orders").select("*").eq("status", "delivered");
   const deliveredOrders = deliveredOrdersData ?? [];
+  const deliveredItemsMap = await fetchOrderItems(deliveredOrders.map((o) => String(o.id)));
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -954,14 +1056,14 @@ export const getProductAnalyticsById = asyncHandler(async (req: AuthenticatedReq
   const yearlySalesMap = new Map<string, { units: number; revenue: number }>();
 
   for (const order of deliveredOrders) {
-    const orderItems = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const orderItems = deliveredItemsMap.get(String(order.id)) ?? [];
     for (const item of orderItems) {
-      const itemProductId = String(item.product_id ?? item.productId ?? "");
+      const itemProductId = String(item.product_id ?? "");
       if (itemProductId === productId) {
         const qty = Number(item.quantity ?? 0);
         const price = Number(item.price ?? 0);
         const itemRevenue = qty * price;
-        const orderDate = new Date(order.created_at ?? order.createdAt);
+        const orderDate = new Date(order.created_at);
 
         // Accumulate totals
         soldTotal += qty;
@@ -1011,12 +1113,13 @@ export const getProductAnalyticsById = asyncHandler(async (req: AuthenticatedReq
   const monthlySales = Array.from(monthlySalesMap.entries()).map(([key, value]) => ({ month: key, units: value.units, revenue: value.revenue })).sort((a, b) => a.month.localeCompare(b.month));
   const yearlySales = Array.from(yearlySalesMap.entries()).map(([key, value]) => ({ year: key, units: value.units, revenue: value.revenue })).sort((a, b) => a.year.localeCompare(b.year));
 
-  // Calculate estimated days out of stock
+  const stock = Number(product.stock ?? 0);
   const avgDailySalesLast30Days = sold30d / 30;
-  const estimatedDaysOutOfStock = avgDailySalesLast30Days > 0 ? Math.ceil((product.quantity as number) / avgDailySalesLast30Days) : Infinity;
+  const estimatedDaysOutOfStock =
+    avgDailySalesLast30Days > 0 ? Math.ceil(stock / avgDailySalesLast30Days) : Infinity;
 
   ApiResponse.success(res, {
-    product: buildProductResponse(product as any),
+    product: buildProductResponse(product as Record<string, unknown>),
     sales: {
       sold_today: soldToday,
       sold_7d: sold7d,
@@ -1036,9 +1139,9 @@ export const getProductAnalyticsById = asyncHandler(async (req: AuthenticatedReq
       yearly_sales: yearlySales,
     },
     inventory: {
-      current_stock: product.quantity,
-      remaining_percentage: 100, // assuming 100% since no initial stock
-      status: product.status,
+      current_stock: stock,
+      remaining_percentage: 100,
+      status: computeProductStatus(stock),
       estimated_days_out_of_stock: estimatedDaysOutOfStock,
     },
   }, "Product analytics fetched successfully");
@@ -1156,6 +1259,7 @@ export const getOrdersAnalytics = asyncHandler(async (req: AuthenticatedRequest,
 
   // Get recent orders (last 10)
   const recentOrders = allOrders.slice(0, 10);
+  const recentWithItems = await buildOrdersWithItems(recentOrders as Array<Record<string, unknown>>);
 
   ApiResponse.success(res, {
     orders: {
@@ -1170,7 +1274,7 @@ export const getOrdersAnalytics = asyncHandler(async (req: AuthenticatedRequest,
       year: orders365d,
     },
     chart: ordersChart,
-    recent_orders: recentOrders.map(o => buildOrderResponse(o as Record<string, unknown>)),
+    recent_orders: recentWithItems,
   }, "Orders analytics fetched successfully");
 });
 
@@ -1185,6 +1289,7 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
   // Get orders for calculations
   const { data: ordersData } = await supabase.from("orders").select("*").gte("created_at", oneYearAgo.toISOString());
   const orders = ordersData ?? [];
+  const orderItemsMap = await fetchOrderItems(orders.map((o) => String(o.id)));
   const { data: productsData } = await supabase.from("products").select("*");
   const products = productsData ?? [];
 
@@ -1226,9 +1331,9 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
     const date = new Date(order.created_at);
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     const monthProductMap = monthlyProductSales.get(monthKey) || new Map();
-    const items = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const items = orderItemsMap.get(String(order.id)) ?? [];
     for (const item of items) {
-      const productId = String(item.product_id ?? item.productId ?? "");
+      const productId = String(item.product_id ?? "");
       const qty = Number(item.quantity ?? 0);
       const price = Number(item.price ?? 0);
       const existing = monthProductMap.get(productId) || { qty: 0, revenue: 0 };
@@ -1237,16 +1342,23 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
     monthlyProductSales.set(monthKey, monthProductMap);
   }
 
-  // Get top and worst selling products (all time)
-  const productSalesMap = new Map<string, { qty: number; revenue: number; product: any }>();
+  const productSalesMap = new Map<string, { qty: number; revenue: number; product: Record<string, unknown> | undefined }>();
   for (const order of orders) {
-    const items = Array.isArray(order.items) ? order.items as Array<Record<string, unknown>> : [];
+    const items = orderItemsMap.get(String(order.id)) ?? [];
     for (const item of items) {
-      const productId = String(item.product_id ?? item.productId ?? "");
+      const productId = String(item.product_id ?? "");
       const qty = Number(item.quantity ?? 0);
       const price = Number(item.price ?? 0);
-      const existing = productSalesMap.get(productId) || { qty: 0, revenue: 0, product: products.find((p: any) => String(p.id) === productId) };
-      productSalesMap.set(productId, { qty: existing.qty + qty, revenue: existing.revenue + qty * price, product: existing.product });
+      const existing = productSalesMap.get(productId) || {
+        qty: 0,
+        revenue: 0,
+        product: products.find((p) => String(p.id) === productId) as Record<string, unknown> | undefined,
+      };
+      productSalesMap.set(productId, {
+        qty: existing.qty + qty,
+        revenue: existing.revenue + qty * price,
+        product: existing.product,
+      });
     }
   }
 
@@ -1281,8 +1393,12 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
   }
 
   // Low stock and out of stock
-  const lowStockProducts = products.filter((p: any) => p.quantity > 0 && p.quantity <= 10).map((p: any) => buildProductResponse(p));
-  const outOfStockProducts = products.filter((p: any) => p.quantity === 0).map((p: any) => buildProductResponse(p));
+  const lowStockProducts = products
+    .filter((p) => Number(p.stock ?? 0) > 0 && Number(p.stock ?? 0) <= 10)
+    .map((p) => buildProductResponse(p as Record<string, unknown>));
+  const outOfStockProducts = products
+    .filter((p) => Number(p.stock ?? 0) === 0)
+    .map((p) => buildProductResponse(p as Record<string, unknown>));
 
   // Newest products
   const newestProducts = [...products]
@@ -1291,10 +1407,11 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
     .map((p: any) => buildProductResponse(p));
 
   // Latest orders (already fetched, sorted desc)
-  const latestOrders = [...orders]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 10)
-    .map(o => buildOrderResponse(o));
+  const latestOrders = await buildOrdersWithItems(
+    [...orders]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 10) as Array<Record<string, unknown>>,
+  );
 
   // Recent reviews
   const { data: recentReviewsData } = await supabase.from("reviews").select("*").order("created_at", { ascending: false }).limit(10);
@@ -1328,76 +1445,83 @@ export const getComprehensiveAnalytics = asyncHandler(async (req: AuthenticatedR
 // Admin settings endpoints
 export const updateAdminEmail = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can update their email");
-  const { email, currentPassword } = req.body;
+  const { email, currentPassword } = req.body as { email?: string; currentPassword?: string };
   if (!email || !currentPassword) throw ApiError.badRequest("Email and current password are required");
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) throw ApiError.badRequest("Please provide a valid email address");
 
-  const { data: user } = await supabase.from("mongo_users").select("*").eq("id", req.user.id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  const bcrypt = await import("bcryptjs");
-  if (!await bcrypt.compare(currentPassword, user.password_hash)) throw ApiError.unauthorized("Current password is incorrect");
+  await AuthService.verifyCurrentPassword(req.user!.id, currentPassword);
 
-  const { data: existing } = await supabase.from("mongo_users").select("id").eq("email", email).neq("id", req.user.id).maybeSingle();
-  if (existing) throw ApiError.badRequest("Email already in use");
+  const { error } = await supabase.auth.admin.updateUserById(req.user!.id, {
+    email: email.toLowerCase().trim(),
+  });
+  if (error) throw ApiError.badRequest(error.message);
 
-  await supabase.from("mongo_users").update({ email }).eq("id", req.user.id);
   ApiResponse.success(res, { email }, "Email updated successfully");
 });
 
 export const updateAdminPassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can update their password");
-  const { currentPassword, newPassword, confirmPassword } = req.body;
-  if (!currentPassword || !newPassword || !confirmPassword) throw ApiError.badRequest("All password fields are required");
+  const { currentPassword, newPassword, confirmPassword } = req.body as {
+    currentPassword?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  };
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw ApiError.badRequest("All password fields are required");
+  }
   if (newPassword !== confirmPassword) throw ApiError.badRequest("New passwords do not match");
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  if (!passwordRegex.test(newPassword)) throw ApiError.badRequest("Password must be 8+ chars with upper, lower, number, and special char");
+  if (!passwordRegex.test(newPassword)) {
+    throw ApiError.badRequest("Password must be 8+ chars with upper, lower, number, and special char");
+  }
 
-  const { data: user } = await supabase.from("mongo_users").select("*").eq("id", req.user.id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  const bcrypt = await import("bcryptjs");
-  if (!await bcrypt.compare(currentPassword, user.password_hash)) throw ApiError.unauthorized("Current password is incorrect");
+  await AuthService.verifyCurrentPassword(req.user!.id, currentPassword);
 
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await supabase.from("mongo_users").update({ password_hash: newHash }).eq("id", req.user.id);
+  const { error } = await supabase.auth.admin.updateUserById(req.user!.id, { password: newPassword });
+  if (error) throw ApiError.internal(error.message);
+
   ApiResponse.success(res, undefined, "Password updated successfully");
 });
 
-// User (client) settings endpoints
 export const updateUserEmail = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) throw ApiError.unauthorized("Not authenticated");
-  const { email, currentPassword } = req.body;
+  const { email, currentPassword } = req.body as { email?: string; currentPassword?: string };
   if (!email || !currentPassword) throw ApiError.badRequest("Email and current password are required");
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) throw ApiError.badRequest("Please provide a valid email address");
 
-  const { data: user } = await supabase.from("mongo_users").select("*").eq("id", req.user.id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  const bcrypt = await import("bcryptjs");
-  if (!await bcrypt.compare(currentPassword, user.password_hash)) throw ApiError.unauthorized("Current password is incorrect");
+  await AuthService.verifyCurrentPassword(req.user.id, currentPassword);
 
-  const { data: existing } = await supabase.from("mongo_users").select("id").eq("email", email).neq("id", req.user.id).maybeSingle();
-  if (existing) throw ApiError.badRequest("Email already in use");
+  const { error } = await supabase.auth.admin.updateUserById(req.user.id, {
+    email: email.toLowerCase().trim(),
+  });
+  if (error) throw ApiError.badRequest(error.message);
 
-  await supabase.from("mongo_users").update({ email }).eq("id", req.user.id);
   ApiResponse.success(res, { email }, "Email updated successfully");
 });
 
 export const updateUserPassword = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.user) throw ApiError.unauthorized("Not authenticated");
-  const { currentPassword, newPassword, confirmPassword } = req.body;
-  if (!currentPassword || !newPassword || !confirmPassword) throw ApiError.badRequest("All password fields are required");
+  const { currentPassword, newPassword, confirmPassword } = req.body as {
+    currentPassword?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  };
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    throw ApiError.badRequest("All password fields are required");
+  }
   if (newPassword !== confirmPassword) throw ApiError.badRequest("New passwords do not match");
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-  if (!passwordRegex.test(newPassword)) throw ApiError.badRequest("Password must be 8+ chars with upper, lower, number, and special char");
+  if (!passwordRegex.test(newPassword)) {
+    throw ApiError.badRequest("Password must be 8+ chars with upper, lower, number, and special char");
+  }
 
-  const { data: user } = await supabase.from("mongo_users").select("*").eq("id", req.user.id).single();
-  if (!user) throw ApiError.notFound("User not found");
-  const bcrypt = await import("bcryptjs");
-  if (!await bcrypt.compare(currentPassword, user.password_hash)) throw ApiError.unauthorized("Current password is incorrect");
+  await AuthService.verifyCurrentPassword(req.user.id, currentPassword);
 
-  const newHash = await bcrypt.hash(newPassword, 12);
-  await supabase.from("mongo_users").update({ password_hash: newHash }).eq("id", req.user.id);
+  const { error } = await supabase.auth.admin.updateUserById(req.user.id, { password: newPassword });
+  if (error) throw ApiError.internal(error.message);
+
   ApiResponse.success(res, undefined, "Password updated successfully");
 });
 
@@ -1496,23 +1620,89 @@ export const deleteReview = asyncHandler(async (req: AuthenticatedRequest, res: 
   ApiResponse.success(res, null, "Review deleted successfully");
 });
 
-// Contact Settings endpoints
-export const getContactSettings = asyncHandler(async (_req: Request, res: Response) => {
-  const { data: settings } = await supabase.from("contact_settings").select("*").limit(1).maybeSingle();
+function formatContactSettings(settings: Record<string, unknown>) {
+  return {
+    id: String(settings.id ?? 1),
+    whatsappNumber: String(settings.whatsapp_number ?? ""),
+    contactName: String(settings.contact_name ?? "Lem3ansra n Jeddi"),
+    email: String(settings.email ?? ""),
+    phone: String(settings.phone ?? ""),
+    address: String(settings.address ?? ""),
+    createdAt: String(settings.updated_at ?? new Date().toISOString()),
+    updatedAt: String(settings.updated_at ?? new Date().toISOString()),
+  };
+}
+
+export const getCategories = asyncHandler(async (_req: Request, res: Response) => {
+  const { data: categories, error } = await supabase
+    .from("categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) throw ApiError.internal("Failed to fetch categories");
+  ApiResponse.success(res, categories ?? [], "Categories fetched successfully");
+});
+
+export const getStoreSettings = asyncHandler(async (_req: Request, res: Response) => {
+  const { data: settings, error } = await supabase
+    .from("store_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) throw ApiError.internal("Failed to fetch store settings");
   if (!settings) {
-    const { data: created } = await supabase.from("contact_settings").insert({
-      whatsapp_number: "", contact_name: "Lem3ansra n Jeddi", email: "", phone: "", address: ""
-    }).select().single();
-    return ApiResponse.success(res, created, "Contact settings fetched successfully");
+    const { data: created, error: createError } = await supabase
+      .from("store_settings")
+      .insert({ id: 1 })
+      .select()
+      .single();
+    if (createError || !created) throw ApiError.internal("Failed to initialize store settings");
+    return ApiResponse.success(res, created, "Store settings fetched successfully");
   }
-  ApiResponse.success(res, settings, "Contact settings fetched successfully");
+
+  ApiResponse.success(res, settings, "Store settings fetched successfully");
+});
+
+// Contact Settings endpoints (backed by store_settings)
+export const getContactSettings = asyncHandler(async (_req: Request, res: Response) => {
+  const { data: settings, error } = await supabase
+    .from("store_settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  if (error) throw ApiError.internal("Failed to fetch contact settings");
+
+  if (!settings) {
+    const { data: created, error: createError } = await supabase
+      .from("store_settings")
+      .insert({
+        id: 1,
+        contact_name: "Lem3ansra n Jeddi",
+        whatsapp_number: "",
+        email: "",
+        phone: "",
+        address: "",
+      })
+      .select()
+      .single();
+    if (createError || !created) throw ApiError.internal("Failed to initialize contact settings");
+    return ApiResponse.success(res, formatContactSettings(created), "Contact settings fetched successfully");
+  }
+
+  ApiResponse.success(res, formatContactSettings(settings), "Contact settings fetched successfully");
 });
 
 export const updateContactSettings = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can update contact settings");
 
   const { whatsappNumber, contactName, email, phone, address } = req.body as {
-    whatsappNumber?: string; contactName?: string; email?: string; phone?: string; address?: string;
+    whatsappNumber?: string;
+    contactName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
   };
 
   const payload: Record<string, string> = {};
@@ -1522,16 +1712,28 @@ export const updateContactSettings = asyncHandler(async (req: AuthenticatedReque
   if (phone !== undefined) payload.phone = phone.trim();
   if (address !== undefined) payload.address = address.trim();
 
-  const { data: existing } = await supabase.from("contact_settings").select("id").limit(1).maybeSingle();
+  const { data: existing } = await supabase.from("store_settings").select("id").eq("id", 1).maybeSingle();
   let result;
   if (existing) {
-    const { data } = await supabase.from("contact_settings").update(payload).eq("id", existing.id).select().single();
+    const { data, error } = await supabase
+      .from("store_settings")
+      .update(payload)
+      .eq("id", 1)
+      .select()
+      .single();
+    if (error) throw ApiError.internal("Failed to update contact settings");
     result = data;
   } else {
-    const { data } = await supabase.from("contact_settings").insert(payload).select().single();
+    const { data, error } = await supabase
+      .from("store_settings")
+      .insert({ id: 1, ...payload })
+      .select()
+      .single();
+    if (error) throw ApiError.internal("Failed to create contact settings");
     result = data;
   }
-  ApiResponse.success(res, result, "Contact settings updated successfully");
+
+  ApiResponse.success(res, formatContactSettings(result as Record<string, unknown>), "Contact settings updated successfully");
 });
 
 // Gallery endpoints

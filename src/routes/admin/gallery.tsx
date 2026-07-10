@@ -15,8 +15,6 @@ export const Route = createFileRoute("/admin/gallery")({
   component: AdminGallery,
 });
 
-const API_BASE = getApiBaseUrl();
-
 function AdminGallery() {
   const { hasPermission } = useAdminAuth();
   const navigate = useNavigate();
@@ -31,7 +29,7 @@ function AdminGallery() {
   const { data: gallery = [], isLoading } = useQuery({
     queryKey: ["gallery"],
     queryFn: async (): Promise<GalleryItem[]> => {
-      const res = await fetch(`${API_BASE}/gallery`, {
+      const res = await fetch(`${getApiBaseUrl()}/gallery`, {
         credentials: "include",
       });
       const json = await res.json();
@@ -51,7 +49,7 @@ function AdminGallery() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("image", file);
-      const res = await fetch(`${API_BASE}/products/upload-image`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/upload-image`, {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -63,7 +61,7 @@ function AdminGallery() {
     onSuccess: async (uploadData) => {
       try {
         // Create gallery item with uploaded image
-        const res = await fetch(`${API_BASE}/gallery`, {
+        const res = await fetch(`${getApiBaseUrl()}/gallery`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -90,7 +88,7 @@ function AdminGallery() {
 
   const updateMutation = useMutation({
     mutationFn: async (data: { id: string; title: string; description: string }) => {
-      const res = await fetch(`${API_BASE}/gallery/${data.id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/gallery/${data.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -112,7 +110,7 @@ function AdminGallery() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API_BASE}/gallery/${id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/gallery/${id}`, {
         method: "DELETE",
         credentials: "include",
       });

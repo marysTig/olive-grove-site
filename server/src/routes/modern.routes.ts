@@ -38,6 +38,8 @@ import {
   toggleReviewVisibility,
   getContactSettings,
   updateContactSettings,
+  getCategories,
+  getStoreSettings,
   getGallery,
   createGalleryItem,
   updateGalleryItem,
@@ -58,6 +60,8 @@ router.get("/auth/me", getMe);
 // Contact Settings (public read, admin write)
 router.get("/contact-settings", getContactSettings);
 router.patch("/contact-settings", protect, restrictTo("admin"), updateContactSettings);
+router.get("/categories", getCategories);
+router.get("/store-settings", getStoreSettings);
 
 // Gallery (public read, admin write)
 router.get("/gallery", getGallery);
@@ -81,7 +85,6 @@ router.post("/products/upload-image", protect, restrictTo("admin"), uploadProduc
 router.get("/products/:slug", getProductBySlug);
 router.patch("/products/:id", protect, restrictTo("admin"), updateProduct);
 router.delete("/products/:id", protect, restrictTo("admin"), deleteProduct);
-router.get("/products/analytics", protect, restrictTo("admin"), getProductAnalytics);
 
 // Reviews
 router.get("/products/:slug/reviews", getReviewsByProduct);

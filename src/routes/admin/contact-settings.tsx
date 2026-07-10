@@ -15,8 +15,6 @@ export const Route = createFileRoute("/admin/contact-settings")({
   component: AdminContactSettings,
 });
 
-const API_BASE = getApiBaseUrl();
-
 function AdminContactSettings() {
   const { hasPermission } = useAdminAuth();
   const navigate = useNavigate();
@@ -39,7 +37,7 @@ function AdminContactSettings() {
   const { data, isLoading } = useQuery({
     queryKey: ["contact-settings"],
     queryFn: async (): Promise<ContactSettings> => {
-      const res = await fetch(`${API_BASE}/contact-settings`, {
+      const res = await fetch(`${getApiBaseUrl()}/contact-settings`, {
         credentials: "include",
       });
       const json = await res.json();
@@ -62,7 +60,7 @@ function AdminContactSettings() {
 
   const updateMutation = useMutation({
     mutationFn: async (formData: typeof form) => {
-      const res = await fetch(`${API_BASE}/contact-settings`, {
+      const res = await fetch(`${getApiBaseUrl()}/contact-settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

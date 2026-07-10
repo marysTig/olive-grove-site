@@ -34,8 +34,6 @@ interface User {
   createdAt: string;
 }
 
-const API_BASE = getApiBaseUrl();
-
 function AdminEmployees() {
   const { user: currentAdmin, hasPermission } = useAdminAuth();
   const navigate = useNavigate();
@@ -79,7 +77,7 @@ function AdminEmployees() {
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("isActive", statusFilter);
 
-      const res = await fetch(`${API_BASE}/users?${params}`, {
+      const res = await fetch(`${getApiBaseUrl()}/users?${params}`, {
         credentials: "include",
       });
 
@@ -92,7 +90,7 @@ function AdminEmployees() {
   // Mutations
   const createMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API_BASE}/users`, {
+      const res = await fetch(`${getApiBaseUrl()}/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fullName, email, password, role }),
@@ -116,7 +114,7 @@ function AdminEmployees() {
   const updateMutation = useMutation({
     mutationFn: async (payload: Partial<User>) => {
       if (!selectedUser) return;
-      const res = await fetch(`${API_BASE}/users/${selectedUser.id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/users/${selectedUser.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -140,7 +138,7 @@ function AdminEmployees() {
   const resetPasswordMutation = useMutation({
     mutationFn: async () => {
       if (!selectedUser) return;
-      const res = await fetch(`${API_BASE}/users/${selectedUser.id}/reset-password`, {
+      const res = await fetch(`${getApiBaseUrl()}/users/${selectedUser.id}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -163,7 +161,7 @@ function AdminEmployees() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API_BASE}/users/${id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/users/${id}`, {
         method: "DELETE",
         credentials: "include",
       });

@@ -39,8 +39,6 @@ interface ProductFormState {
   active: boolean;
 }
 
-const API_BASE = getApiBaseUrl();
-
 function createEmptyForm(): ProductFormState {
   return {
     name_fr: "",
@@ -123,7 +121,7 @@ function AdminProducts() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/products`, { credentials: "include" });
+      const res = await fetch(`${getApiBaseUrl()}/products`, { credentials: "include" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Impossible de charger les produits");
       setProducts(Array.isArray(json.data) ? json.data : []);
@@ -185,7 +183,7 @@ function AdminProducts() {
         active: Boolean(form.active),
       };
 
-      const url = editingId ? `${API_BASE}/products/${editingId}` : `${API_BASE}/products`;
+      const url = editingId ? `${getApiBaseUrl()}/products/${editingId}` : `${getApiBaseUrl()}/products`;
       const method = editingId ? "PATCH" : "POST";
       const res = await fetch(url, {
         method,
@@ -214,7 +212,7 @@ function AdminProducts() {
 
   const handleToggleFeatured = async (product: Product) => {
     try {
-      const res = await fetch(`${API_BASE}/products/${product.id}`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/${product.id}`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +231,7 @@ function AdminProducts() {
     if (!window.confirm("Supprimer ce produit ?")) return;
 
     try {
-      const res = await fetch(`${API_BASE}/products/${productId}`, {
+      const res = await fetch(`${getApiBaseUrl()}/products/${productId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -257,12 +255,26 @@ function AdminProducts() {
     formData.append("image", file);
 
     try {
-      const res = await fetch(`${API_BASE}/products/upload-image`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      const json = await res.json();
+      const apiBase = getApiBaseUrl();
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 60000);
+
+      let res: Response;
+      try {
+        res = await fetch(`${apiBase}/products/upload-image`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const json = contentType.includes("application/json")
+        ? await res.json()
+        : { message: await res.text() };
       if (!res.ok) throw new Error(json?.message || "Upload impossible");
       const upload = json.data as { secure_url: string; public_id: string };
       setForm((current) => ({
@@ -272,7 +284,11 @@ function AdminProducts() {
       }));
       setStatusMessage("Image ajoutée");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Upload impossible");
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatusMessage("L’upload a expiré. Réessayez avec une image plus légère.");
+      } else {
+        setStatusMessage(error instanceof Error ? error.message : "Upload impossible");
+      }
     } finally {
       setIsUploading(false);
       event.target.value = "";
