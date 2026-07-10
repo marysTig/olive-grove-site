@@ -266,9 +266,6 @@ async function listAuthUsers() {
 }
 
 export const health = asyncHandler(async (_req: Request, res: Response) => {
-<<<<<<< HEAD
-  ApiResponse.success(res, { status: "healthy", store: "supabase" }, "Server is running");
-=======
   try {
     await assertSupabaseSchemaReady();
     ApiResponse.success(res, { status: "healthy", store: "supabase" }, "Server is running");
@@ -276,7 +273,6 @@ export const health = asyncHandler(async (_req: Request, res: Response) => {
     const message = error instanceof Error ? error.message : "Schema validation failed";
     throw ApiError.serviceUnavailable(message);
   }
->>>>>>> a4a14fd6229561491238e039b19e1abefd45246c
 });
 
 export const getProducts = asyncHandler(async (_req: Request, res: Response) => {
