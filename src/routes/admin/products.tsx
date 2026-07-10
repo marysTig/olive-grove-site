@@ -255,12 +255,26 @@ function AdminProducts() {
     formData.append("image", file);
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/products/upload-image`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-      const json = await res.json();
+      const apiBase = getApiBaseUrl();
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 60000);
+
+      let res: Response;
+      try {
+        res = await fetch(`${apiBase}/products/upload-image`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+          signal: controller.signal,
+        });
+      } finally {
+        window.clearTimeout(timeout);
+      }
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const json = contentType.includes("application/json")
+        ? await res.json()
+        : { message: await res.text() };
       if (!res.ok) throw new Error(json?.message || "Upload impossible");
       const upload = json.data as { secure_url: string; public_id: string };
       setForm((current) => ({
@@ -270,7 +284,11 @@ function AdminProducts() {
       }));
       setStatusMessage("Image ajoutée");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Upload impossible");
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setStatusMessage("L’upload a expiré. Réessayez avec une image plus légère.");
+      } else {
+        setStatusMessage(error instanceof Error ? error.message : "Upload impossible");
+      }
     } finally {
       setIsUploading(false);
       event.target.value = "";

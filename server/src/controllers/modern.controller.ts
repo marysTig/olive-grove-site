@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import streamifier from "streamifier";
 import { v2 as cloudinary } from "cloudinary";
@@ -408,8 +408,20 @@ export const deleteProduct = asyncHandler(async (req: Request, res: Response) =>
   ApiResponse.success(res, null, "Product deleted successfully");
 });
 
+const runImageUploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  if (req.file) {
+    return next();
+  }
+  upload.single("image")(req, res, (error) => {
+    if (error) {
+      return next(error);
+    }
+    next();
+  });
+};
+
 export const uploadProductImage = [
-  upload.single("image"),
+  runImageUploadMiddleware,
   asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) {
       throw ApiError.badRequest("No image file provided");
@@ -430,7 +442,7 @@ export const uploadProductImage = [
           },
           (error, result) => {
             if (error || !result) {
-              reject(error || new Error("Upload failed"));
+              reject(error || new Error("Cloudinary upload failed"));
             } else {
               resolve({ secure_url: result.secure_url, public_id: result.public_id });
             }
@@ -438,7 +450,10 @@ export const uploadProductImage = [
         );
         streamifier.createReadStream(req.file!.buffer).pipe(uploadStream);
       },
-    );
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "Cloudinary upload failed";
+      throw ApiError.internal(`Image upload failed: ${message}`);
+    });
 
     ApiResponse.success(res, uploadResult, "Image uploaded successfully");
   }),

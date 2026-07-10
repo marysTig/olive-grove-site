@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { parseMultipartFile } from "../server/src/utils/multipart";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -88,10 +89,13 @@ async function handleExpressRoute(request: Request): Promise<Response> {
       );
     };
 
-    const socket = { remoteAddress: "127.0.0.1" };
-    const listeners: Record<string, Array<(chunk?: unknown) => void>> = {};
+    const socket = {
+      remoteAddress: "127.0.0.1",
+      destroy: () => undefined,
+      end: () => undefined,
+    };
 
-    const req = {
+    const buildReqMetadata = () => ({
       method: request.method,
       url: url.pathname + url.search,
       originalUrl: url.pathname + url.search,
@@ -103,22 +107,31 @@ async function handleExpressRoute(request: Request): Promise<Response> {
       ip: "127.0.0.1",
       cookies: parseCookieHeader(headers.cookie),
       body: undefined as unknown,
-      readable: true,
-      read: () => null,
-      on: (event: string, cb: (chunk?: unknown) => void) => {
-        listeners[event] = listeners[event] ?? [];
-        listeners[event].push(cb);
-        return req;
-      },
-      removeListener: (event: string, cb: (chunk?: unknown) => void) => {
-        listeners[event] = (listeners[event] ?? []).filter((fn) => fn !== cb);
-        return req;
-      },
-      emit: (event: string, chunk?: unknown) => {
-        for (const cb of listeners[event] ?? []) cb(chunk);
-        return true;
-      },
-      pipe: () => req,
+    });
+
+    const createPlainReq = () => {
+      const listeners: Record<string, Array<(chunk?: unknown) => void>> = {};
+      const req = {
+        ...buildReqMetadata(),
+        file: undefined as import("express").Express.Multer.File | undefined,
+        readable: true,
+        read: () => null,
+        on: (event: string, cb: (chunk?: unknown) => void) => {
+          listeners[event] = listeners[event] ?? [];
+          listeners[event].push(cb);
+          return req;
+        },
+        removeListener: (event: string, cb: (chunk?: unknown) => void) => {
+          listeners[event] = (listeners[event] ?? []).filter((fn) => fn !== cb);
+          return req;
+        },
+        emit: (event: string, chunk?: unknown) => {
+          for (const cb of listeners[event] ?? []) cb(chunk);
+          return true;
+        },
+        pipe: () => req,
+      };
+      return req;
     };
 
     const res = {
@@ -193,17 +206,34 @@ async function handleExpressRoute(request: Request): Promise<Response> {
       },
     };
 
-    // Load request body for POST/PATCH/PUT
     const processBody = async () => {
+      const contentType = headers["content-type"] ?? "";
+      let req: ReturnType<typeof createPlainReq>;
+
       if (["POST", "PUT", "PATCH"].includes(request.method)) {
-        const contentType = headers["content-type"] ?? "";
-        if (contentType.includes("application/json")) {
-          const text = await request.text();
-          req.body = text ? JSON.parse(text) : {};
+        if (contentType.includes("multipart/form-data")) {
+          req = createPlainReq();
+          try {
+            const buffer = Buffer.from(await request.arrayBuffer());
+            req.file = await parseMultipartFile(buffer, contentType, "image");
+            req.body = {};
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Invalid multipart upload";
+            finish(JSON.stringify({ success: false, statusCode: 400, message }));
+            return;
+          }
         } else {
-          req.body = {};
+          req = createPlainReq();
+          if (contentType.includes("application/json")) {
+            const text = await request.text();
+            req.body = text ? JSON.parse(text) : {};
+          } else {
+            req.body = {};
+            queueMicrotask(() => req.emit("end"));
+          }
         }
       } else {
+        req = createPlainReq();
         req.body = {};
         queueMicrotask(() => req.emit("end"));
       }
@@ -211,7 +241,7 @@ async function handleExpressRoute(request: Request): Promise<Response> {
       (req as { _body?: boolean })._body = true;
 
       try {
-        (app as (req: unknown, res: unknown) => void)(req, res);
+        (app as (request: unknown, response: unknown) => void)(req, res);
       } catch (err) {
         console.error("Express handler error:", err);
         if (!settled) {

@@ -77,6 +77,25 @@ app.use(
       });
     }
 
+    if (err && typeof err === "object" && "code" in err) {
+      const multerCode = String((err as { code?: string }).code);
+      if (multerCode === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          success: false,
+          statusCode: 400,
+          message: "Image exceeds the 5MB upload limit.",
+        });
+      }
+    }
+
+    if (err instanceof Error && err.message.includes("Invalid file type")) {
+      return res.status(400).json({
+        success: false,
+        statusCode: 400,
+        message: err.message,
+      });
+    }
+
     console.error(err);
     return res.status(500).json({
       success: false,
