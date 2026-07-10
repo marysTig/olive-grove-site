@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Instagram, Facebook, Mail, MapPin, Clock } from "lucide-react";
+import { Instagram, Facebook, Mail, MapPin, Clock, MessageCircle } from "lucide-react";
 import { useI18n } from "@/i18n";
 import { settingsQuery } from "@/lib/queries";
 import { logo } from "@/lib/images";
@@ -98,6 +98,16 @@ export function Footer() {
                 className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
               >
                 <Facebook className="h-4 w-4" />
+              </a>
+            )}
+            {settings?.whatsapp_number && (
+              <a
+                href={`https://wa.me/${settings.whatsapp_number.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-sidebar-accent p-2.5 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              >
+                <MessageCircle className="h-4 w-4" />
               </a>
             )}
           </div>

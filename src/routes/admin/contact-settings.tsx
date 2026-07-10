@@ -3,7 +3,7 @@ import { useAdminAuth } from "@/lib/admin-auth";
 import { getApiBaseUrl } from "@/lib/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Phone, Mail, MapPin, User, Save } from "lucide-react";
+import { Phone, Mail, MapPin, User, Save, Facebook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +28,7 @@ function AdminContactSettings() {
 
   const [form, setForm] = useState({
     whatsappNumber: "",
+    facebookUrl: "",
     contactName: "",
     email: "",
     phone: "",
@@ -50,6 +51,7 @@ function AdminContactSettings() {
     if (data) {
       setForm({
         whatsappNumber: data.whatsappNumber || "",
+        facebookUrl: data.facebookUrl || "",
         contactName: data.contactName || "",
         email: data.email || "",
         phone: data.phone || "",
@@ -97,7 +99,7 @@ function AdminContactSettings() {
       {/* Header */}
       <div>
         <h1 className="font-display text-2xl font-bold text-olive-dark">
-          Contact Settings
+          My Contacts
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage contact information displayed on the public site
@@ -136,6 +138,20 @@ function AdminContactSettings() {
             <p className="text-xs text-muted-foreground">
               Used for WhatsApp button on contact page
             </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="facebookUrl">Facebook URL</Label>
+            <div className="relative">
+              <Facebook className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="facebookUrl"
+                value={form.facebookUrl}
+                onChange={(e) => setForm({ ...form, facebookUrl: e.target.value })}
+                className="pl-9 rounded-xl"
+                placeholder="https://facebook.com/..."
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

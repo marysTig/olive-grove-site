@@ -1620,6 +1620,7 @@ function formatContactSettings(settings: Record<string, unknown>) {
   return {
     id: String(settings.id ?? 1),
     whatsappNumber: String(settings.whatsapp_number ?? ""),
+    facebookUrl: String(settings.facebook_url ?? ""),
     contactName: String(settings.contact_name ?? "Lem3ansra n Jeddi"),
     email: String(settings.email ?? ""),
     phone: String(settings.phone ?? ""),
@@ -1693,8 +1694,9 @@ export const getContactSettings = asyncHandler(async (_req: Request, res: Respon
 export const updateContactSettings = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== "admin") throw ApiError.forbidden("Only administrators can update contact settings");
 
-  const { whatsappNumber, contactName, email, phone, address } = req.body as {
+  const { whatsappNumber, facebookUrl, contactName, email, phone, address } = req.body as {
     whatsappNumber?: string;
+    facebookUrl?: string;
     contactName?: string;
     email?: string;
     phone?: string;
@@ -1703,6 +1705,7 @@ export const updateContactSettings = asyncHandler(async (req: AuthenticatedReque
 
   const payload: Record<string, string> = {};
   if (whatsappNumber !== undefined) payload.whatsapp_number = whatsappNumber.trim();
+  if (facebookUrl !== undefined) payload.facebook_url = facebookUrl.trim();
   if (contactName !== undefined) payload.contact_name = contactName.trim();
   if (email !== undefined) payload.email = email.trim().toLowerCase();
   if (phone !== undefined) payload.phone = phone.trim();

@@ -14,6 +14,7 @@ import {
   BarChart3,
   Star,
   Image,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
@@ -61,6 +62,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Galerie",
     to: "/admin/gallery",
     icon: Image,
+    permission: "manage_settings",
+  },
+  {
+    label: "My Contacts",
+    to: "/admin/contact-settings",
+    icon: Phone,
     permission: "manage_settings",
   },
   {

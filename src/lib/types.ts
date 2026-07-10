@@ -117,6 +117,7 @@ export interface StoreSettings {
 export interface ContactSettings {
   id: string;
   whatsappNumber: string;
+  facebookUrl: string;
   contactName: string;
   email: string;
   phone: string;
