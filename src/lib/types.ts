@@ -84,6 +84,14 @@ export interface Review {
   updatedAt: string;
 }
 
+export interface PublicReview extends Review {
+  product?: {
+    name_fr: string;
+    name_ar: string;
+    slug: string;
+  };
+}
+
 export interface Coupon {
   id: string;
   code: string;

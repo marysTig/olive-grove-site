@@ -56,6 +56,7 @@ export const dict = {
     process_5: "Mise en bouteille",
     process_6: "Livraison",
     testi_title: "Ce que disent nos clients",
+    no_reviews: "Aucun avis client pour le moment.",
     gallery_title: "Notre oliveraie",
     faq_title: "Questions fréquentes",
     // products
@@ -228,6 +229,7 @@ export const dict = {
     process_5: "التعبئة",
     process_6: "التوصيل",
     testi_title: "ماذا يقول عملاؤنا",
+    no_reviews: "لا توجد تقييمات للعملاء في الوقت الحالي.",
     gallery_title: "حقول الزيتون لدينا",
     faq_title: "الأسئلة الشائعة",
     products_title: "منتجاتنا",

@@ -283,7 +283,7 @@ function buildReviewResponse(review: {
 }
 
 export const health = asyncHandler(async (_req: Request, res: Response) => {
-  ApiResponse.success(res, { status: "healthy", store: "mongodb" }, "Server is running");
+  ApiResponse.success(res, { status: "healthy", store: "supabase" }, "Server is running");
 });
 
 export const getProducts = asyncHandler(async (_req: Request, res: Response) => {
@@ -868,7 +868,7 @@ export const getProductAnalytics = asyncHandler(async (req: AuthenticatedRequest
   const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
 
   const productSales = products.map((product) => {
-    const productId = String(product._id);
+    const productId = String(product.id);
     let soldToday = 0;
     let sold7d = 0;
     let sold30d = 0;
@@ -1459,6 +1459,26 @@ export const getAllReviews = asyncHandler(async (req: AuthenticatedRequest, res:
     reviews: (reviews ?? []).map(buildReviewResponse),
     pagination: { total, page, limit, pages: Math.ceil(total / limit) },
   }, "Reviews fetched successfully");
+});
+
+export const getPublicReviews = asyncHandler(async (_req: Request, res: Response) => {
+  const { data: reviews, error } = await supabase
+    .from("reviews")
+    .select("*, products(name_fr, name_ar, slug)")
+    .eq("is_visible", true)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    throw ApiError.internal("Failed to fetch public reviews");
+  }
+
+  const formattedReviews = (reviews ?? []).map((r: any) => ({
+    ...buildReviewResponse(r),
+    product: r.products ? { name_fr: r.products.name_fr, name_ar: r.products.name_ar, slug: r.products.slug } : undefined
+  }));
+
+  ApiResponse.success(res, formattedReviews, "Public reviews fetched successfully");
 });
 
 export const toggleReviewVisibility = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

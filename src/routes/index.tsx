@@ -27,8 +27,7 @@ import { Button } from "@/components/ui/button";
 import { StoreLayout } from "@/components/layout/StoreLayout";
 import { ProductCard } from "@/components/ProductCard";
 import { useI18n } from "@/i18n";
-import { galleryQuery } from "@/lib/queries";
-import { productsQuery } from "@/lib/queries";
+import { galleryQuery, productsQuery, publicReviewsQuery } from "@/lib/queries";
 import {
   heroGrove,
   galleryHarvest,
@@ -47,6 +46,7 @@ function Index() {
   const { t, lang } = useI18n();
   const { data: products = [], isLoading, isError, error } = useQuery(productsQuery());
   const { data: gallery = [] } = useQuery(galleryQuery());
+  const { data: publicReviews = [], isLoading: isLoadingReviews } = useQuery(publicReviewsQuery());
 
   const defaultGallery: GalleryItem[] = [
     {
@@ -115,27 +115,7 @@ function Index() {
     t("process_6"),
   ];
 
-  const testimonials =
-    lang === "ar"
-      ? [
-          { name: "أمينة ب.", text: "أفضل زيت زيتون تذوقته. طعم أصيل يذكرني ببيت جدي." },
-          { name: "كريم د.", text: "جودة استثنائية وتوصيل سريع. أنصح به بشدة." },
-          { name: "سارة م.", text: "التغليف أنيق جدًا والزيت لذيذ. سأطلب مجددًا." },
-        ]
-      : [
-          {
-            name: "Amina B.",
-            text: "La meilleure huile d'olive que j'ai goûtée. Un goût authentique.",
-          },
-          {
-            name: "Karim D.",
-            text: "Qualité exceptionnelle et livraison rapide. Je recommande vivement.",
-          },
-          {
-            name: "Sarah M.",
-            text: "L'emballage est élégant et l'huile délicieuse. Je recommanderai.",
-          },
-        ];
+
 
   const faqs =
     lang === "ar"
@@ -338,26 +318,62 @@ function Index() {
           <h2 className="mb-12 text-center font-display text-3xl font-bold sm:text-4xl">
             {t("testi_title")}
           </h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            {testimonials.map((tst, i) => (
-              <motion.div
-                key={tst.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="rounded-3xl bg-white/10 p-7 backdrop-blur"
-              >
-                <div className="mb-3 flex gap-0.5 text-accent">
-                  {Array.from({ length: 5 }).map((_, s) => (
-                    <Star key={s} className="h-4 w-4 fill-accent" />
-                  ))}
-                </div>
-                <p className="mb-5 text-sm leading-relaxed text-white/90">"{tst.text}"</p>
-                <p className="font-display font-semibold text-accent">{tst.name}</p>
-              </motion.div>
-            ))}
-          </div>
+          {isLoadingReviews ? (
+            <div className="grid gap-6 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-48 rounded-3xl bg-white/10" />
+              ))}
+            </div>
+          ) : publicReviews.length === 0 ? (
+            <div className="py-10 text-center text-white/70">
+              <p>{t("no_reviews")}</p>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-3">
+              {publicReviews.map((review, i) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                  className="flex flex-col rounded-3xl bg-white/10 p-7 backdrop-blur"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-4">
+                    <div className="flex gap-0.5 shrink-0">
+                      {Array.from({ length: 5 }).map((_, s) => (
+                        <Star
+                          key={s}
+                          className={`h-4 w-4 ${
+                            s < review.rating ? "fill-accent text-accent" : "text-white/30"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {review.product && (
+                      <Link
+                        to={`/products/${review.product.slug}`}
+                        className="line-clamp-1 max-w-[150px] text-end text-xs text-white/60 underline-offset-2 hover:text-white/90 hover:underline"
+                      >
+                        {lang === "ar" ? review.product.name_ar : review.product.name_fr}
+                      </Link>
+                    )}
+                  </div>
+                  <p className="mb-5 flex-grow text-sm leading-relaxed text-white/90">
+                    "{review.comment}"
+                  </p>
+                  <div className="mt-auto flex items-end justify-between gap-4">
+                    <p className="font-display font-semibold text-accent line-clamp-1">{review.customerName}</p>
+                    <span className="text-xs text-white/50 shrink-0">
+                      {new Date(review.createdAt).toLocaleDateString(
+                        lang === "ar" ? "ar-DZ" : "fr-DZ",
+                      )}
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

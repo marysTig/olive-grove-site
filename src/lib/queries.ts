@@ -5,6 +5,7 @@ import type {
   Category,
   StoreSettings,
   Review,
+  PublicReview,
   DashboardStats,
   ProductAnalytics,
   ProductDetailsAnalytics,
@@ -83,6 +84,31 @@ export const reviewsByProductQuery = (slug: string) =>
           throw error;
         }
         throw new Error("An unexpected error occurred while loading reviews.");
+      }
+    },
+  });
+
+export const publicReviewsQuery = () =>
+  queryOptions({
+    queryKey: ["public_reviews"],
+    queryFn: async (): Promise<PublicReview[]> => {
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/reviews/public`, {
+          credentials: "include",
+        });
+        const json = await response.json();
+        if (!response.ok) throw new Error(json?.message || "Unable to load public reviews");
+        return (json?.data ?? []) as PublicReview[];
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message.includes("fetch") || error.name === "TypeError") {
+            throw new Error(
+              "Unable to connect to the backend server. Please verify it is running on port 5000.",
+            );
+          }
+          throw error;
+        }
+        throw new Error("An unexpected error occurred while loading public reviews.");
       }
     },
   });

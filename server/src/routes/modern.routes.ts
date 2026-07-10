@@ -43,6 +43,7 @@ import {
   updateGalleryItem,
   deleteGalleryItem,
   reorderGallery,
+  getPublicReviews,
 } from "@server/controllers/modern.controller";
 import { protect } from "@server/middlewares/auth.middleware";
 import { restrictTo } from "@server/middlewares/admin.middleware";
@@ -85,6 +86,7 @@ router.get("/products/analytics", protect, restrictTo("admin"), getProductAnalyt
 // Reviews
 router.get("/products/:slug/reviews", getReviewsByProduct);
 router.post("/products/:slug/reviews", createReview);
+router.get("/reviews/public", getPublicReviews);
 router.get("/reviews", protect, restrictTo("admin"), getAllReviews);
 router.patch("/reviews/:id/visibility", protect, restrictTo("admin"), toggleReviewVisibility);
 router.delete("/reviews/:id", protect, restrictTo("admin"), deleteReview);
